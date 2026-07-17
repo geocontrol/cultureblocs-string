@@ -1,0 +1,37 @@
+services:
+  spine:
+    build: ./spine
+    ports: ["8100:8100"]
+    volumes:
+      - ./data:/data
+      - ./lexicons:/lexicons:ro
+    environment:
+      SPINE_DB: /data/spine.db
+      SPINE_LEXICONS: /lexicons
+      SPINE_MEDIA: /data/media
+      # SPINE_TOKEN: change-me        # uncomment to require auth
+    restart: unless-stopped
+
+  timeline:
+    image: nginx:alpine
+    ports: ["8101:80"]
+    volumes:
+      - ./timeline:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  studio:
+    image: nginx:alpine
+    ports: ["8102:80"]
+    volumes:
+      - ./studio:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    # Note: Web Serial (USB pull/push/clear) requires a secure context.
+    # http://localhost:8102 qualifies; a LAN IP does not — use Tailscale
+    # HTTPS or open the file directly if accessing from another machine.
+
+  # -- later --------------------------------------------------------
+  # pds:                              # official Bluesky PDS image
+  #   image: ghcr.io/bluesky-social/pds:latest
+  #   ...
+  # promoter:                         # Stage F worker: snapshot ->
+  #   ...                             # privacy-strip -> putRecord

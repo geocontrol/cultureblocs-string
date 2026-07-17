@@ -1,0 +1,196 @@
+{
+  "lexicon": 1,
+  "id": "com.cultureblocs.defs",
+  "defs": {
+    "workRef": {
+      "type": "object",
+      "description": "Reference to an artwork/creative work. At least one resolvable ID or a descriptive fallback (title).",
+      "properties": {
+        "wikidata": {
+          "type": "string",
+          "description": "Wikidata QID, e.g. Q1892745"
+        },
+        "accession": {
+          "type": "ref",
+          "ref": "#accessionRef"
+        },
+        "linkedArt": {
+          "type": "string",
+          "format": "uri",
+          "description": "Linked Art object URI"
+        },
+        "title": {
+          "type": "string",
+          "maxGraphemes": 500
+        },
+        "creator": {
+          "type": "string",
+          "maxGraphemes": 300
+        },
+        "date": {
+          "type": "string",
+          "maxGraphemes": 100,
+          "description": "Freeform creation date, e.g. '1972' or 'c. 1889'"
+        },
+        "image": {
+          "type": "ref",
+          "ref": "#mediaRef"
+        }
+      }
+    },
+    "accessionRef": {
+      "type": "object",
+      "required": [
+        "institution",
+        "id"
+      ],
+      "properties": {
+        "institution": {
+          "type": "string",
+          "format": "did",
+          "description": "DID of the holding institution"
+        },
+        "id": {
+          "type": "string",
+          "maxGraphemes": 200,
+          "description": "Accession/inventory number"
+        }
+      }
+    },
+    "placeRef": {
+      "type": "object",
+      "description": "A venue with an ATProto identity, or an ad-hoc named place.",
+      "properties": {
+        "did": {
+          "type": "string",
+          "format": "did",
+          "description": "Venue DID if it has an ATProto account"
+        },
+        "name": {
+          "type": "string",
+          "maxGraphemes": 300
+        },
+        "geo": {
+          "type": "ref",
+          "ref": "#geo"
+        }
+      }
+    },
+    "geo": {
+      "type": "object",
+      "required": [
+        "lat",
+        "lng",
+        "precision"
+      ],
+      "properties": {
+        "lat": {
+          "type": "number"
+        },
+        "lng": {
+          "type": "number"
+        },
+        "precision": {
+          "type": "string",
+          "knownValues": [
+            "exact",
+            "100m",
+            "1km",
+            "city"
+          ],
+          "description": "Declared coordinate fuzzing level. Coordinates MUST already be fuzzed to this precision before the record leaves Tier 0."
+        }
+      }
+    },
+    "mediaRef": {
+      "type": "object",
+      "description": "Tier 0/1 media reference. Replaced by an atproto blob at promotion time.",
+      "required": [
+        "uri"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "mime": {
+          "type": "string",
+          "maxGraphemes": 100
+        },
+        "alt": {
+          "type": "string",
+          "maxGraphemes": 1000
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "app",
+        "mintedAt"
+      ],
+      "properties": {
+        "app": {
+          "type": "string",
+          "maxGraphemes": 100,
+          "description": "Producing app id, e.g. 'culturebloc', 'ar-gallery'"
+        },
+        "device": {
+          "type": "string",
+          "maxGraphemes": 100,
+          "description": "Device identifier, e.g. StickS3 id"
+        },
+        "mintedAt": {
+          "type": "string",
+          "format": "datetime"
+        },
+        "mutualMint": {
+          "type": "boolean",
+          "description": "True if created by a mutual-press ceremony"
+        },
+        "mintId": {
+          "type": "string",
+          "maxGraphemes": 64,
+          "description": "Device-generated mint identifier (hex). Shared between both parties' beads on a mutual mint \u2014 the encounter join key."
+        },
+        "timeAnchored": {
+          "type": "boolean",
+          "description": "False when the device knew only the time-of-day or nothing; createdAt is then a best guess"
+        }
+      }
+    },
+    "strongRef": {
+      "type": "object",
+      "description": "Local stand-in for com.atproto.repo.strongRef",
+      "required": [
+        "uri"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "cid": {
+          "type": "string"
+        }
+      }
+    },
+    "linkRef": {
+      "type": "object",
+      "description": "External link attached to a bead or strand: event page, venue page, ticket listing.",
+      "required": [
+        "uri"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "title": {
+          "type": "string",
+          "maxGraphemes": 300
+        }
+      }
+    }
+  }
+}

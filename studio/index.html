@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CultureBloc Studio</title>
+<style>
+  :root{
+    --plaster:#FAFAF9; --wash:#F2F1EC; --card:#FFFFFF; --card-edge:#E4E2DB;
+    --ink:#1B1D22; --muted:#8A8880; --faint:#8A8880; --thread:#C9C7C0;
+    --accent:#2B4BC7; --accent-hover:#3A5BD9; --keep:#0F6E6B; --warn:#A33B2E;
+    --serif:Futura,"Avenir Next","Century Gothic",sans-serif;   /* display voice */
+    --sans:Charter,Georgia,serif;                                /* reading voice */
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--sans);color:var(--ink);background:var(--plaster);
+    min-height:100vh;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:48px 22px 96px}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(26px,5vw,36px);
+     letter-spacing:.06em;text-transform:uppercase;margin:0 0 4px}
+  h1 .g{color:var(--accent)}
+  .sub{font-family:var(--mono);font-size:12.5px;color:var(--muted);letter-spacing:.02em;margin-bottom:26px}
+  .card{background:var(--card);border:1px solid var(--card-edge);border-left:3px solid var(--ink);
+    border-radius:8px;padding:18px 20px;margin-bottom:18px;box-shadow:0 1px 2px rgba(27,29,34,.05)}
+  .card h2{font-family:var(--serif);font-weight:600;font-size:15px;letter-spacing:.1em;
+    text-transform:uppercase;margin:0 0 14px}
+  label{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em;display:block;margin-bottom:5px}
+  input[type=text],input[type=date],input[type=password],textarea,select{
+    width:100%;background:var(--plaster);color:var(--ink);border:1px solid var(--card-edge);
+    border-radius:6px;font-family:var(--sans);font-size:14px;padding:9px 11px}
+  textarea{resize:vertical;min-height:52px;line-height:1.5}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .btn{font-family:var(--serif);font-size:12.5px;font-weight:600;letter-spacing:.08em;
+    text-transform:uppercase;border-radius:6px;padding:10px 15px;
+    cursor:pointer;border:1px solid transparent;transition:.2s}
+  .btn.p{background:var(--accent);color:#fff}.btn.p:hover{background:var(--accent-hover)}
+  .btn.g{background:transparent;color:var(--ink);border-color:var(--card-edge)}.btn.g:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.d{background:transparent;color:var(--warn);border-color:#E0C4BE}.btn.d:hover{background:#F7ECEA;border-color:var(--warn)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .note{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:8px;line-height:1.5}
+
+  /* wardrobe */
+  .masks{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .mchip{display:flex;align-items:center;gap:7px;background:var(--plaster);border:1px solid var(--card-edge);
+    border-radius:20px;padding:5px 11px 5px 8px;font-size:13px}
+  .sw{width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(27,29,34,.12)}
+  .addmask{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+  .addmask > div{flex:1;min-width:120px}
+  input[type=color]{width:42px;height:38px;padding:2px;background:var(--plaster);border:1px solid var(--card-edge);border-radius:6px;cursor:pointer}
+
+  /* the string */
+  .string{position:relative}
+  .brow{display:grid;grid-template-columns:30px 1fr;gap:16px;margin-top:14px;position:relative}
+  .rail{position:relative}
+  .rail::before{content:"";position:absolute;left:13px;top:-14px;bottom:-14px;width:2px;background:var(--thread)}
+  .brow:first-child .rail::before{top:14px}
+  .node{position:absolute;left:5px;top:8px;width:16px;height:16px;border-radius:50%;
+    box-shadow:0 0 0 3px var(--card);z-index:2}
+  .brow.rel .node{opacity:.35}
+  .bcard{background:var(--plaster);border:1px solid var(--card-edge);border-radius:8px;padding:14px 16px;transition:opacity .3s}
+  .brow.rel .bcard{opacity:.5}
+  .btime{font-family:var(--serif);font-weight:600;font-size:19px;line-height:1;letter-spacing:.03em}
+  .btime.unk{color:var(--muted);font-size:14px;text-transform:uppercase;letter-spacing:.1em}
+  .bmeta{font-family:var(--mono);font-size:11px;color:var(--muted);margin:5px 0 10px}
+  .bpeer{margin-left:8px;padding:1px 7px;border-radius:9px;background:#F6E7EF;color:#B0326E;font-size:10px;font-family:var(--mono)}
+  .brow.shared .bcard{box-shadow:inset 3px 0 0 #B0326E}
+  .bctl{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .bctl select{width:auto;flex:1;min-width:130px}
+  .toggle{font-family:var(--mono);font-size:11px;letter-spacing:.03em;background:transparent;color:var(--muted);
+    border:1px solid var(--card-edge);border-radius:18px;padding:6px 13px;cursor:pointer;transition:.2s}
+  .toggle[aria-pressed=true].keep{background:var(--keep);color:#fff;border-color:var(--keep);font-weight:500}
+  .toggle[aria-pressed=true].rel{background:var(--wash);color:var(--ink);border-color:var(--thread)}
+
+  .foot{margin-top:34px;padding-top:24px;border-top:1px solid var(--card-edge);display:flex;
+    justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+  .tally{font-family:var(--mono);font-size:13px;color:var(--muted)}.tally b{color:var(--keep);font-weight:500}
+  .empty{color:var(--faint);font-style:italic;font-size:14px;padding:8px 0}
+  @media(max-width:560px){.row2,.row3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CultureBloc <span class="g">Studio</span></h1>
+  <div class="sub">the desk where the field notebook gets dated, named, and filed</div>
+
+  <!-- IMPORT -->
+  <div class="card">
+    <h2>1 · Bring the beads in</h2>
+    <div class="bctl" style="margin-top:0">
+      <button class="btn g" id="pull">Pull from device (USB)</button>
+      <span class="note" id="pullnote" style="margin:0"></span>
+    </div>
+    <label style="margin-top:14px">…or paste the dump (send <b>D</b> in your serial monitor, copy the block)</label>
+    <textarea id="paste" placeholder="---BEADS-BEGIN---&#10;{&quot;seq&quot;:1,&quot;mask&quot;:&quot;solarpunk&quot;,&quot;r&quot;:127,&quot;g&quot;:191,&quot;b&quot;:160,&quot;t&quot;:&quot;20:14:31&quot;}&#10;---BEADS-END---"></textarea>
+    <button class="btn p" id="import" style="margin-top:10px">Import</button>
+  </div>
+
+  <!-- EVENT -->
+  <div class="card">
+    <h2>2 · Name the occasion</h2>
+    <div class="row3">
+      <div><label>date (used for old-format or time-unknown beads)</label><input type="date" id="edate"></div>
+      <div><label>event</label><input type="text" id="ename" placeholder="RA Summer Exhibition"></div>
+      <div><label>device (for dedupe keys)</label><input type="text" id="edevice" value="bloc-1"></div>
+    </div>
+  </div>
+
+  <!-- WARDROBE -->
+  <div class="card">
+    <h2>3 · The wardrobe</h2>
+    <div class="masks" id="masks"></div>
+    <div class="addmask">
+      <div><label>new mask</label><input type="text" id="mname" placeholder="gallery"></div>
+      <input type="color" id="mcol" value="#8a7fbf" aria-label="mask colour">
+      <button class="btn g" id="addmask">Add</button>
+    </div>
+    <div class="note">Add a mask (e.g. "gallery"), then retag beads to it below. Colours here recolour the beads you retag.</div>
+    <div class="bctl" style="margin-top:12px"><button class="btn g" id="pushMasks">Push wardrobe to device (USB)</button><span class="note" id="pushnote" style="margin:0"></span></div>
+  </div>
+
+  <!-- BEADS -->
+  <div class="card">
+    <h2>4 · Tell the beads</h2>
+    <div class="string" id="string"><div class="empty">No beads yet — import them above.</div></div>
+  </div>
+
+  <div class="foot">
+    <div class="tally" id="tally"></div>
+    <div class="bctl" style="margin:0">
+      <button class="btn g" id="expJson" disabled>Save beads (.json)</button>
+      <button class="btn p" id="expMd" disabled>Save daily note (.md)</button>
+    </div>
+  </div>
+
+  <div id="spineZone" style="display:none;margin-top:22px;padding:16px 18px;border:1px solid var(--card-edge);border-radius:12px;background:var(--card)">
+    <div style="font-family:var(--serif);font-size:16px;margin-bottom:4px">Push to the Spine</div>
+    <div class="note" style="margin:0 0 12px">Send the kept beads to the cultureblocs Spine as <b>com.cultureblocs.bead</b> records. Safe to repeat — the Spine dedupes on the bead's key.</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="spineUrl" value="http://localhost:8100" style="flex:1;min-width:200px" aria-label="Spine URL">
+      <input type="password" id="spineToken" placeholder="token (if set)" style="width:130px" aria-label="Spine token">
+      <button class="btn p" id="pushSpine">Push to Spine</button>
+    </div>
+    <div class="note" id="spinenote" style="margin-top:10px"></div>
+  </div>
+
+  <div id="dangerZone" style="display:none;margin-top:22px;padding:16px 18px;border:1px solid #E0C4BE;border-radius:12px;background:#FBF3F1">
+    <div style="font-family:var(--serif);font-size:16px;margin-bottom:4px;color:var(--warn)">Clear the device</div>
+    <div class="note" style="margin:0 0 12px">Once these beads are exported and safe, you can wipe the device to start a fresh session. The device will refuse if you've minted anything since your last pull.</div>
+    <button class="btn d" id="clearDev">Clear device (USB)</button>
+    <span class="note" id="clearnote" style="margin-left:10px"></span>
+  </div>
+</div>
+
+<script>
+// ---------- state ----------
+let masks = [                       // seeded wardrobe; imports + adds extend it
+  {name:"solarpunk", hex:"#7fbfa0"},
+  {name:"opera",     hex:"#d4af5a"},
+  {name:"punk",      hex:"#e62878"},
+];
+let beads = [];                     // {seq, mask, hex, t, note, keep}
+let pulledCount = 0;                // how many beads came off the device this session
+let hasExported = false;            // has the user saved a file yet?
+
+const $ = id => document.getElementById(id);
+const hex = (r,g,b)=>'#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
+$('edate').value = new Date().toISOString().slice(0,10);
+$('spineUrl').value = localStorage.spineUrl || 'http://localhost:8100';
+$('spineToken').value = localStorage.spineToken || '';
+
+// ---------- parse an imported dump / ndjson ----------
+function parseBeads(text, deviceNow, syncNow, dumpEpoch){
+  const out = [];
+  text.split('\n').forEach(line=>{
+    line = line.trim();
+    if(!line.startsWith('{')) return;              // skip markers, logs, blanks
+    try{
+      const o = JSON.parse(line);
+      const h = (o.r!=null) ? hex(o.r,o.g,o.b) : (o.hex || '#888');
+      let t, iso = null, anchored;
+      if (o.e !== undefined && deviceNow !== null) {
+        // epoch rule: a bead resolves only within the power session that dumped it
+        anchored = (o.ep === undefined || dumpEpoch == null) ? true : (o.ep === dumpEpoch);
+        if (anchored) {
+          const d = new Date(syncNow - (deviceNow - o.e) * 1000); // elapsed -> wall clock
+          t = d.toTimeString().slice(0,8);                        // HH:MM:SS (local, display)
+          iso = d.toISOString();                                  // true instant (UTC) — for the Spine
+        } else {
+          t = '—';   // earlier power session: order known, wall-clock not anchorable
+        }
+      } else {
+        t = o.t || '?'; anchored = false;          // legacy t-beads: time-of-day only
+      }
+      out.push({ seq: o.seq ?? out.length+1, mask: o.mask || 'unknown', hex: h,
+                 t, iso, mintId: o.mintId || null, ep: o.ep,
+                 timeAnchored: anchored, note: o.note || '', keep: o.keep !== false,
+                 peer: o.with || null });
+    }catch(e){}
+  });
+  return out;
+}
+
+function ingest(text){
+  const nm = text.match(/---NOW (\d+)/);           // tolerant of the trailing "EPOCH k"
+  const deviceNow = nm ? parseInt(nm[1]) : null;   // device counter at sync
+  const em = text.match(/EPOCH (\d+)/);
+  const dumpEpoch = em ? parseInt(em[1]) : null;   // current power-session epoch
+  const syncNow = Date.now();                       // wall-clock of this pull = the anchor
+  const parsed = parseBeads(text, deviceNow, syncNow, dumpEpoch);
+  if(!parsed.length){ alert('No beads found. Paste the block including the {…} lines.'); return; }
+  beads = parsed;
+  // fold any unseen masks from the beads into the wardrobe
+  beads.forEach(b=>{
+    if(!masks.find(m=>m.name===b.mask)) masks.push({name:b.mask, hex:b.hex});
+  });
+  renderMasks(); renderBeads(); renderTally();
+  $('expJson').disabled = $('expMd').disabled = false;
+  pulledCount = beads.length;
+  $('dangerZone').style.display = 'block';
+  $('spineZone').style.display = 'block';
+}
+
+$('import').onclick = ()=> ingest($('paste').value);
+
+// ---------- Web Serial (progressive enhancement) ----------
+(function(){
+  if(!('serial' in navigator)){ $('pull').disabled = true;
+    $('pullnote').textContent = 'USB pull needs Chrome/Edge on localhost — use paste.'; return; }
+  $('pull').onclick = async ()=>{
+    try{
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      const w = port.writable.getWriter();
+      await w.write(new TextEncoder().encode('D\nW\n'));   // beads AND wardrobe
+      w.releaseLock();
+      const reader = port.readable.getReader();
+      const dec = new TextDecoder(); let buf=''; const t0=Date.now();
+      while(Date.now()-t0 < 5000){
+        const {value,done} = await reader.read();
+        if(done) break;
+        buf += dec.decode(value);
+        if(buf.includes('---MASKS-DUMP-END---')) break;   // masks come last, so this = both done
+      }
+      reader.releaseLock(); await port.close();
+      // split the two responses so mask JSON never gets parsed as beads
+      const beadSec = section(buf, '---BEADS-BEGIN---', '---BEADS-END---');
+      const maskSec = section(buf, '---MASKS-DUMP-BEGIN---', '---MASKS-DUMP-END---');
+      applyDeviceMasks(maskSec);           // adopt the device's real wardrobe first
+      ingest(beadSec || buf);              // then the beads (fallback to whole buf for old firmware)
+    }catch(e){ $('pullnote').textContent = 'Pull failed: '+e.message; }
+  };
+})();
+
+// pull out the text between two markers (exclusive); '' if either is missing
+function section(buf, begin, end){
+  const i = buf.indexOf(begin), j = buf.indexOf(end);
+  return (i<0 || j<0) ? '' : buf.slice(i + begin.length, j);
+}
+// adopt the device's wardrobe as the Studio's — the device is the source of truth on pull
+function applyDeviceMasks(text){
+  const dm = [];
+  text.split('\n').forEach(line=>{
+    line = line.trim();
+    if(!line.startsWith('{')) return;
+    try{ const o = JSON.parse(line); if(o.name != null) dm.push({name:o.name, hex:hex(o.r,o.g,o.b)}); }catch(e){}
+  });
+  if(dm.length){ masks = dm; renderMasks(); renderBeads(); }
+}
+
+
+// ---------- push wardrobe to device (Web Serial) ----------
+function hexToRgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+(function(){
+  const btn = document.getElementById('pushMasks'); if(!btn) return;
+  if(!('serial' in navigator)){ btn.disabled = true;
+    document.getElementById('pushnote').textContent = 'needs Chrome/Edge on localhost'; return; }
+  btn.onclick = async ()=>{
+    try{
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      const w = port.writable.getWriter(); const enc = new TextEncoder();
+      let out = "M\n";
+      masks.forEach(m=>{ const [r,g,b]=hexToRgb(m.hex); out += m.name+"|"+r+"|"+g+"|"+b+"\n"; });
+      out += ".\n";
+      await w.write(enc.encode(out)); w.releaseLock();
+      const reader = port.readable.getReader(); const dec=new TextDecoder(); let buf=''; const t0=Date.now();
+      while(Date.now()-t0<3000){ const {value,done}=await reader.read(); if(done)break; buf+=dec.decode(value); if(buf.includes('---MASKS-OK'))break; }
+      reader.releaseLock(); await port.close();
+      const mm = buf.match(/---MASKS-OK (\d+)---/);
+      document.getElementById('pushnote').textContent = mm ? ('pushed — '+mm[1]+' masks now on device') : 'pushed (no confirmation)';
+    }catch(e){ document.getElementById('pushnote').textContent = 'push failed: '+e.message; }
+  };
+})();
+
+// ---------- wardrobe ----------
+function renderMasks(){
+  $('masks').innerHTML = masks.map(m=>
+    `<span class="mchip"><span class="sw" style="background:${m.hex}"></span>${m.name}</span>`).join('');
+}
+$('addmask').onclick = ()=>{
+  const name = $('mname').value.trim().toLowerCase(); if(!name) return;
+  if(!masks.find(m=>m.name===name)) masks.push({name, hex:$('mcol').value});
+  $('mname').value=''; renderMasks(); renderBeads();
+};
+renderMasks();
+
+// ---------- beads ----------
+function renderBeads(){
+  const el = $('string');
+  if(!beads.length){ el.innerHTML='<div class="empty">No beads yet — import them above.</div>'; return; }
+  el.innerHTML = beads.map((b,i)=>{
+    const opts = masks.map(m=>`<option value="${m.name}" ${m.name===b.mask?'selected':''}>${m.name}</option>`).join('');
+    const tHtml = b.t==='?' ? `<span class="btime unk">time unknown</span>`
+                : b.t==='—' ? `<span class="btime unk">earlier session</span>`
+                : `<span class="btime">${b.t}</span>`;
+    const peerHtml = b.peer ? `<span class="bpeer">&#8646; ${b.peer.mask} &middot; ${b.peer.id}</span>` : '';
+    return `<div class="brow ${b.keep?'':'rel'} ${b.peer?'shared':''}">
+      <div class="rail"><div class="node" style="background:${b.hex}"></div></div>
+      <div class="bcard">
+        ${tHtml}<div class="bmeta">bead #${b.seq}${peerHtml}</div>
+        <textarea data-i="${i}" class="bnote" placeholder="What was this? Why did you press?">${b.note}</textarea>
+        <div class="bctl">
+          <select data-i="${i}" class="bmask">${opts}</select>
+          <button class="toggle keep" data-i="${i}" data-k="keep" aria-pressed="${b.keep}">keep</button>
+          <button class="toggle rel"  data-i="${i}" data-k="rel"  aria-pressed="${!b.keep}">let go</button>
+        </div>
+      </div></div>`;
+  }).join('');
+}
+$('string').addEventListener('input', e=>{
+  const i = +e.target.dataset.i;
+  if(e.target.classList.contains('bnote')) beads[i].note = e.target.value;
+  if(e.target.classList.contains('bmask')){
+    beads[i].mask = e.target.value;
+    const m = masks.find(x=>x.name===e.target.value); if(m) beads[i].hex = m.hex;
+    renderBeads();
+  }
+});
+$('string').addEventListener('click', e=>{
+  const t = e.target.closest('.toggle'); if(!t) return;
+  const i=+t.dataset.i; beads[i].keep = t.dataset.k==='keep';
+  renderBeads(); renderTally();
+});
+function renderTally(){
+  const k = beads.filter(b=>b.keep).length;
+  $('tally').innerHTML = beads.length ? `keeping <b>${k}</b> · releasing ${beads.length-k}` : '';
+}
+
+// ---------- export ----------
+function fullT(b){ const d=$('edate').value; return b.t==='?' ? d : `${d}T${b.t}`; }
+function download(name,text,type){
+  const u=URL.createObjectURL(new Blob([text],{type})); const a=document.createElement('a');
+  a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); hasExported = true;
+}
+$('expJson').onclick = ()=>{
+  const d=$('edate').value, ev=$('ename').value.trim();
+  const lines = beads.filter(b=>b.keep).map(b=>JSON.stringify({
+    v:1, kind:"solo", date:d, event:ev||null,
+    t: fullT(b), time_known: b.t!=='?', mask:b.mask, note:b.note.trim()
+  }));
+  download(`culturebloc-${d}.encounters.json`, lines.join('\n'), 'application/x-ndjson');
+};
+$('expMd').onclick = ()=>{
+  const d=$('edate').value, ev=$('ename').value.trim();
+  const kept = beads.filter(b=>b.keep), gone = beads.filter(b=>!b.keep);
+  const line = b => `- **${b.t==='?'?'—':b.t}** · *${b.mask}* — ${b.note.trim()||'_(unnoted)_'}  \`t=${fullT(b)}\``;
+  let md = `---\ndate: ${d}\ntype: culturebloc-telling\nevent: ${ev}\ntags: [culturebloc, cultural-spine, beads]\n---\n\n`;
+  md += `# CultureBloc — ${ev||d}\n\n`;
+  md += `*${beads.length} beads · kept ${kept.length} / released ${gone.length}*\n\n`;
+  md += `## Kept\n\n` + (kept.map(line).join('\n')||'_none_') + `\n\n`;
+  md += `## Released\n\n` + (gone.map(line).join('\n')||'_none_') + `\n`;
+  download(`culturebloc-${d}.md`, md, 'text/markdown');
+};
+
+// ---------- push to the cultureblocs Spine (POST /records) ----------
+// Maps Studio beads onto com.cultureblocs.bead:
+//   kind solo -> visit, peer -> encounter; mask -> tags[0];
+//   event name -> subject.name (placeRef).
+// Timestamps, best available truth first:
+//   1. current-epoch elapsed beads: resolved to a true UTC instant at ingest —
+//      date picker ignored (a bead pressed before midnight keeps its true date)
+//   2. old-epoch beads (minted before a power loss): wall clock is honestly
+//      unknowable — picker date at midnight + seq seconds (preserves the known
+//      ordering without inventing times) + timeAnchored:false
+//   3. legacy t-beads: picker date + HH:MM:SS as LOCAL time converted to UTC;
+//      timeAnchored:false (the device knew only time-of-day — per the lexicon
+//      definition, that is not an anchored instant)
+//   4. no time at all: picker date at midnight + timeAnchored:false
+// dedupeKey: cb:{mintId} when the firmware provides one, else the composite.
+function toRecord(b){
+  const dPick = $('edate').value, ev = $('ename').value.trim();
+  const device = $('edevice').value.trim() || 'bloc-1';
+  let createdAt;
+  if (b.iso) {                                   // 1. resolved instant
+    createdAt = b.iso;
+  } else if (b.t === '—') {                      // 2. old epoch: order-only
+    createdAt = new Date(Date.parse(`${dPick}T00:00:00Z`) + b.seq*1000).toISOString();
+  } else if (b.t !== '?') {                      // 3. legacy: local wall time on picked date
+    const local = new Date(`${dPick}T${b.t}`);
+    createdAt = isNaN(local) ? `${dPick}T${b.t}Z` : local.toISOString();
+  } else {                                       // 4. unknown
+    createdAt = `${dPick}T00:00:00.000Z`;
+  }
+  const body = {
+    "$type": "com.cultureblocs.bead",
+    createdAt,
+    kind: b.peer ? "encounter" : "visit",
+    tags: [b.mask],
+    provenance: { app: "culturebloc", device, mintedAt: createdAt,
+                  mutualMint: !!b.peer, timeAnchored: !!b.timeAnchored }
+  };
+  if (b.mintId) body.provenance.mintId = b.mintId;
+  if (ev) body.subject = { name: ev };
+  const noteBits = [b.note.trim()];
+  if (b.peer) noteBits.push(`mutual mint with ${b.peer.mask} · ${b.peer.id}`);
+  const note = noteBits.filter(Boolean).join(' — ');
+  if (note) body.note = note;
+  return { dedupeKey: b.mintId ? `cb:${b.mintId}`
+                               : `cb:${device}:${createdAt.slice(0,10)}:${b.seq}:${b.t}`,
+           type: "com.cultureblocs.bead", sourceApp: "culturebloc-studio",
+           createdAt, body };
+}
+
+$('pushSpine').onclick = async ()=>{
+  const kept = beads.filter(b=>b.keep);
+  if(kept.length === 0){ $('spinenote').textContent = 'no kept beads to push'; return; }
+  const url = $('spineUrl').value.trim().replace(/\/$/,'');
+  const token = $('spineToken').value.trim();
+  localStorage.spineUrl = url; localStorage.spineToken = token;
+  const headers = {'content-type':'application/json'};
+  if (token) headers['authorization'] = 'Bearer ' + token;
+  $('spinenote').textContent = 'pushing…';
+  try{
+    const r = await fetch(url + '/records', {
+      method:'POST', headers,
+      body: JSON.stringify({ records: kept.map(toRecord) })
+    });
+    if(!r.ok){ $('spinenote').textContent = `the Spine responded ${r.status} ${r.statusText}`; return; }
+    const { results } = await r.json();
+    const n = s => results.filter(x=>x.status===s).length;
+    const bad = results.filter(x=>x.status==='invalid');
+    let msg = `pushed ${results.length} kept — ${n('created')} new, ${n('duplicate')} already in the Spine.`;
+    if (bad.length) msg += ` ${bad.length} rejected: ${bad[0].problems.join('; ')}`;
+    $('spinenote').textContent = msg;
+  }catch(e){
+    $('spinenote').textContent = `couldn't reach the Spine at ${url} — is it running? (docker compose up)`;
+  }
+};
+
+// ---------- gated clear (Web Serial) ----------
+// Two-tap confirm: a native confirm() dialog consumes the click's user gesture,
+// which then blocks requestPort(). An in-page arm/confirm keeps the wipe inside
+// a live gesture — and is a nicer destructive-action pattern anyway.
+let clearArmed = false, clearTimer = null;
+function disarmClear(){
+  clearArmed = false;
+  if(clearTimer){ clearTimeout(clearTimer); clearTimer = null; }
+  $('clearDev').textContent = 'Clear device (USB)';
+}
+$('clearDev').onclick = async ()=>{
+  if(!('serial' in navigator)){ $('clearnote').textContent = 'needs Chrome/Edge on localhost'; return; }
+  if(beads.length === 0) return;
+
+  if(!clearArmed){                       // first tap: arm
+    clearArmed = true;
+    $('clearDev').textContent = `⚠ Tap again to wipe ${pulledCount} beads`;
+    $('clearnote').textContent = hasExported ? '' : 'not exported yet — save a file first to be safe';
+    clearTimer = setTimeout(disarmClear, 5000);
+    return;
+  }
+
+  disarmClear();                         // second tap: this IS a live gesture
+  try{
+    const port = await navigator.serial.requestPort();   // first call in the gesture — allowed
+    await port.open({ baudRate: 115200 });
+    const w = port.writable.getWriter();
+    await w.write(new TextEncoder().encode('C'+pulledCount+'\n'));
+    w.releaseLock();
+    const reader = port.readable.getReader(); const dec = new TextDecoder(); let buf=''; const t0=Date.now();
+    while(Date.now()-t0 < 4000){ const {value,done} = await reader.read(); if(done) break; buf += dec.decode(value); if(buf.includes('---CLEAR-')) break; }
+    reader.releaseLock(); await port.close();
+    if(buf.includes('---CLEAR-OK')){
+      $('clearnote').textContent = `cleared — ${pulledCount} beads wiped; the totem is now empty`;
+    }else{
+      const m = buf.match(/have=(\d+) want=(\d+)/);
+      $('clearnote').textContent = m
+        ? `refused — device holds ${m[1]} beads but you pulled ${m[2]}. You've minted since your pull; re-pull, then clear.`
+        : 'no confirmation from device';
+    }
+  }catch(e){ $('clearnote').textContent = 'clear failed: '+e.message; }
+};
+</script>
+</body>
+</html>

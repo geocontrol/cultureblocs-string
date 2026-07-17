@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cultureblocs — the day's string</title>
+<style>
+  :root{
+    --plaster:#FAFAF9; --ink:#1B1D22; --faint:#8A8880; --thread:#C9C7C0;
+    --visit:#2B4BC7; --dwell:#C7860F; --encounter:#B0326E;
+    --screening:#0F6E6B; --performance:#5B2BC7; --note:#6E6C66;
+    --card:#FFFFFF; --card-edge:#E4E2DB; --wash:#F2F1EC;
+    --disp:Futura,"Avenir Next","Century Gothic",sans-serif;
+    --body:Charter,Georgia,serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--plaster);color:var(--ink);font:16px/1.55 var(--body)}
+  header{display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;
+         padding:1.4rem 1.6rem .9rem;border-bottom:1px solid var(--card-edge)}
+  h1{margin:0;font:600 1.05rem/1 var(--disp);letter-spacing:.14em;text-transform:uppercase}
+  h1 span{color:var(--faint);font-weight:400}
+  header .cfg{margin-left:auto;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+  input,select,button,textarea{font:inherit;padding:.3rem .55rem;border:1px solid var(--card-edge);
+     border-radius:4px;background:var(--card);color:var(--ink)}
+  button{cursor:pointer}
+  button.primary{background:var(--visit);border-color:var(--visit);color:#fff}
+  button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+     outline:2px solid var(--visit);outline-offset:1px}
+  main{max-width:46rem;margin:0 auto;padding:1.4rem 1.2rem 5rem}
+  .empty{color:var(--faint);text-align:center;padding:4rem 0;
+         font-family:var(--disp);letter-spacing:.06em}
+  .toolbar{display:flex;gap:.6rem;align-items:center;margin:0 0 1.4rem 0;flex-wrap:wrap}
+  .toolbar .hint{font:12px var(--mono);color:var(--faint)}
+  /* the string */
+  .string{position:relative;margin-left:5.5rem}
+  .string::before{content:"";position:absolute;left:0;top:.4rem;bottom:.4rem;
+                  width:2px;background:var(--thread)}
+  .stop{position:relative;padding:0 0 2.1rem 1.6rem}
+  .stop time{position:absolute;left:-6.1rem;top:.05rem;width:4.4rem;
+             text-align:right;font:12px var(--mono);color:var(--faint)}
+  .bead{position:absolute;left:-7px;top:.25rem;width:16px;height:16px;
+        border-radius:50%;background:var(--k,#999);box-shadow:0 0 0 3px var(--plaster)}
+  .stop .kind{font:600 11px var(--disp);letter-spacing:.16em;
+        text-transform:uppercase;color:var(--k,#999)}
+  .stop .title{font-weight:600}
+  .stop .meta{color:var(--faint);font-size:.85rem}
+  .stop .note{margin:.25rem 0 0;white-space:pre-wrap}
+  .stop .note[contenteditable]:empty::before{content:"add a note…";color:var(--faint)}
+  .stop .note[contenteditable]:focus{outline:1px dashed var(--visit);
+        outline-offset:3px;border-radius:2px}
+  .stop.annotation .bead{border-radius:2px;background:var(--card);
+        border:2.5px solid var(--ink);left:-8px;width:14px;height:14px}
+  .label-card{background:var(--card);border:1px solid var(--card-edge);
+        border-left:3px solid var(--ink);padding:.7rem .9rem;max-width:34rem;
+        margin-top:.2rem;box-shadow:0 1px 2px rgba(27,29,34,.05)}
+  .label-card .work{font-weight:700}
+  .label-card .artist{font-style:italic}
+  .label-card .conf{font:10px var(--mono);color:var(--faint)}
+  .chips{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.3rem}
+  .chip{font:11px var(--mono);border:1px solid var(--card-edge);border-radius:10px;
+        padding:.05rem .5rem;color:var(--faint);background:var(--card)}
+  a.chip{color:var(--visit);text-decoration:none;border-color:var(--visit)}
+  .thumbs{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem}
+  .thumbs img{height:74px;border-radius:4px;border:1px solid var(--card-edge);display:block}
+  /* selection & editing: while selecting, the checkbox takes the bead's place on the thread */
+  .pick{position:absolute;left:-11px;top:.15rem;transform:scale(1.35);display:none;
+        accent-color:var(--visit);cursor:pointer}
+  body.selecting .pick{display:block}
+  body.selecting .bead{display:none}
+  .stop .tools{margin-top:.4rem}
+  .tools button{font:11px var(--disp);letter-spacing:.08em;text-transform:uppercase;
+        padding:.2rem .55rem;color:var(--faint);background:transparent;border-color:transparent}
+  .tools button:hover{color:var(--visit)}
+  .editor{background:var(--wash);border:1px solid var(--card-edge);border-radius:6px;
+        padding:.7rem .8rem;margin-top:.5rem;display:grid;gap:.5rem;max-width:34rem}
+  .editor label{font:10.5px var(--mono);color:var(--faint);display:block;margin-bottom:.15rem}
+  .editor input{width:100%}
+  .editor .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+  .editor .row{display:flex;gap:.5rem;align-items:center}
+  .savemsg{font:11px var(--mono);color:var(--screening)}
+  /* strands */
+  .strand{position:relative;margin:0 0 2.1rem -1.2rem;padding:1rem 1.2rem .2rem;
+        border:1px solid var(--card-edge);border-left:3px solid var(--ink);
+        border-radius:8px;background:var(--card)}
+  .strand > .shead{display:flex;gap:.7rem;align-items:baseline;flex-wrap:wrap;margin:0 0 1rem}
+  .strand .stitle{font:600 1.05rem var(--disp);letter-spacing:.03em}
+  .strand .stitle[contenteditable]:focus{outline:1px dashed var(--visit);outline-offset:3px}
+  .strand .smeta{font:11px var(--mono);color:var(--faint)}
+  .strand .stools{margin-left:auto}
+  .strand .stop:last-of-type{padding-bottom:.9rem}
+  @media (prefers-reduced-motion:no-preference){
+    .stop,.strand{animation:settle .35s ease-out backwards}
+    @keyframes settle{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>cultureblocs <span>/ the day's string</span></h1>
+  <div class="cfg">
+    <select id="day" aria-label="Day"></select>
+    <input id="spine" size="20" aria-label="Spine URL" placeholder="http://localhost:8100">
+    <input id="token" size="9" type="password" aria-label="Token" placeholder="token">
+    <button id="reload">Load</button>
+  </div>
+</header>
+<main>
+  <div class="toolbar">
+    <button id="selmode">Select beads</button>
+    <button id="mkstrand" class="primary" style="display:none">Group into strand</button>
+    <span class="hint" id="selhint"></span>
+  </div>
+  <div id="out" class="empty">Point at a Spine and load a day.</div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const S={records:[],strands:[],byId:{},selecting:false,sel:new Set()};
+const cfg={ get url(){return ($('#spine').value||'http://localhost:8100').replace(/\/$/,'')},
+            get token(){return $('#token').value||''} };
+$('#spine').value=localStorage.spineUrl||'http://localhost:8100';
+$('#token').value=localStorage.spineToken||'';
+function headers(json=true){const h={};if(json)h['Content-Type']='application/json';
+  if(cfg.token)h['Authorization']='Bearer '+cfg.token;return h}
+async function api(path,opts={}){
+  const r=await fetch(cfg.url+path,{headers:headers(),...opts});
+  if(!r.ok)throw new Error(r.status+' '+await r.text());return r.json()}
+function hhmm(iso){return iso.slice(11,16)}
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+const ref=id=>`spine://records/${id}`, unref=u=>(u||'').replace('spine://records/','');
+
+async function loadDays(){
+  const {days}=await api('/days');
+  $('#day').innerHTML=days.map(d=>
+    `<option value="${d.day}">${d.day} · ${d.count}</option>`).join('')
+    ||'<option value="">no records yet</option>';
+}
+
+function chips(b){
+  const tag=(b.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('');
+  const links=(b.links||[]).map(l=>
+    `<a class="chip" href="${esc(l.uri)}" target="_blank" rel="noopener">${esc(l.title||l.uri.replace(/^https?:\/\//,'').slice(0,34))}</a>`).join('');
+  return (tag||links)?`<div class="chips">${tag}${links}</div>`:'';
+}
+function thumbs(b){
+  const m=(b.media||[]).map(x=>{
+    const src=x.uri.startsWith('/')?cfg.url+x.uri:x.uri;
+    return `<img src="${esc(src)}" alt="${esc(x.alt||'')}">`}).join('');
+  return m?`<div class="thumbs">${m}</div>`:'';
+}
+function anchoredBadge(r){
+  const p=r.body.provenance||{};
+  return p.timeAnchored===false?`<span class="chip" title="time is a best guess">~time</span>`:'';
+}
+function stopTools(){
+  return `<div class="tools"><button class="edit-btn">edit</button><button class="photo-btn">+ photo</button></div>
+  <input type="file" accept="image/*" class="photo-in" hidden>`;
+}
+function editor(b){
+  const l=(b.links||[])[0]||{};
+  return `<div class="editor" hidden>
+    <div><label>tags (comma separated)</label><input class="e-tags" value="${esc((b.tags||[]).join(', '))}"></div>
+    <div><label>place / occasion</label><input class="e-place" value="${esc(b.subject&&b.subject.name||'')}" placeholder="Tate Modern"></div>
+    <div class="grid2">
+      <div><label>link url</label><input class="e-luri" value="${esc(l.uri||'')}" placeholder="https://…"></div>
+      <div><label>link label</label><input class="e-ltitle" value="${esc(l.title||'')}" placeholder="show page"></div>
+    </div>
+    <div class="row"><button class="primary e-save">Save</button><span class="savemsg"></span></div>
+  </div>`;
+}
+function renderBead(r){
+  const b=r.body,k=b.kind||'note';
+  const place=b.subject&&b.subject.name?b.subject.name:'';
+  return `<div class="stop" data-id="${r.id}" style="--k:var(--${k})">
+    <input type="checkbox" class="pick" data-id="${r.id}" ${S.sel.has(r.id)?'checked':''}>
+    <time>${hhmm(r.createdAt)}</time><span class="bead"></span>
+    <div class="kind">${esc(k)}</div>
+    ${place?`<div class="title">${esc(place)}</div>`:''}
+    <div class="meta">${esc(r.sourceApp)}${b.provenance&&b.provenance.device?' · '+esc(b.provenance.device):''} ${anchoredBadge(r)}</div>
+    <p class="note" contenteditable="plaintext-only">${esc(b.note||'')}</p>
+    ${chips(b)}${thumbs(b)}${stopTools()}${editor(b)}
+  </div>`;
+}
+function renderAnnotation(r){
+  const b=r.body,w=b.work||{};
+  return `<div class="stop annotation" data-id="${r.id}">
+    <input type="checkbox" class="pick" data-id="${r.id}" ${S.sel.has(r.id)?'checked':''}>
+    <time>${hhmm(r.createdAt)}</time><span class="bead"></span>
+    <div class="kind" style="color:var(--ink)">bookmark</div>
+    <div class="label-card">
+      <div class="work">${esc(w.title||'Untitled work')}</div>
+      ${w.creator?`<div class="artist">${esc(w.creator)}${w.date?', '+esc(w.date):''}</div>`:''}
+      ${w.wikidata?`<div class="conf">${esc(w.wikidata)}</div>`:''}
+      <p class="note" contenteditable="plaintext-only">${esc(b.note||'')}</p>
+      ${chips(b)}${thumbs(b)}${stopTools()}${editor(b)}
+    </div>
+  </div>`;
+}
+function renderStrand(st, members){
+  const b=st.body;
+  const place=b.place&&b.place.name?` · ${esc(b.place.name)}`:'';
+  const links=(b.links||[]).map(l=>
+    `<a class="chip" href="${esc(l.uri)}" target="_blank" rel="noopener">${esc(l.title||'event page')}</a>`).join('');
+  return `<div class="strand" data-sid="${st.id}">
+    <div class="shead">
+      <span class="stitle" contenteditable="plaintext-only">${esc(b.title||'Untitled strand')}</span>
+      <span class="smeta">${members.length} beads${place}</span>${links}
+      <span class="stools tools"><button class="strand-edit">edit</button><button class="ungroup">ungroup</button></span>
+    </div>
+    <div class="editor strand-editor" hidden>
+      <div><label>place</label><input class="s-place" value="${esc(b.place&&b.place.name||'')}" placeholder="Tate Modern"></div>
+      <div class="grid2">
+        <div><label>link url</label><input class="s-luri" value="${esc((b.links||[])[0]?.uri||'')}" placeholder="https://…"></div>
+        <div><label>link label</label><input class="s-ltitle" value="${esc((b.links||[])[0]?.title||'')}" placeholder="exhibition page"></div>
+      </div>
+      <div class="row"><button class="primary s-save">Save</button><span class="savemsg"></span></div>
+    </div>
+    ${members.map(m=>m.type==='com.cultureblocs.annotation'?renderAnnotation(m):renderBead(m)).join('')}
+  </div>`;
+}
+
+function render(){
+  const items=S.records.filter(r=>r.type!=='com.cultureblocs.strand')
+                       .sort((a,b)=>a.createdAt<b.createdAt?-1:1);
+  if(!items.length&&!S.strands.length){$('#out').className='empty';
+    $('#out').textContent='Nothing on the string for '+$('#day').value;return}
+  const member={};       // itemId -> strand
+  S.strands.forEach(st=>(st.body.items||[]).forEach(it=>member[unref(it.uri)]=st));
+  const done=new Set(); let html='';
+  items.forEach(r=>{
+    if(done.has(r.id))return;
+    const st=member[r.id];
+    if(st){
+      const ms=items.filter(x=>member[x.id]===st);
+      ms.forEach(x=>done.add(x.id));
+      html+=renderStrand(st,ms);
+    }else{ done.add(r.id);
+      html+=(r.type==='com.cultureblocs.annotation'?renderAnnotation(r):renderBead(r));
+    }
+  });
+  $('#out').className='';
+  $('#out').innerHTML=`<div class="string">${html}</div>`;
+}
+
+async function loadDay(){
+  const day=$('#day').value;if(!day){$('#out').textContent='No records yet.';return}
+  const {records}=await api('/records?day='+day);
+  S.records=records; S.byId={}; records.forEach(r=>S.byId[r.id]=r);
+  S.strands=records.filter(r=>r.type==='com.cultureblocs.strand');
+  S.sel.clear(); updateSel();
+  render();
+}
+
+// ---------- editing ----------
+async function patch(id,fields){
+  const rec=await api('/records/'+id,{method:'PATCH',body:JSON.stringify({fields})});
+  S.byId[id]=rec;
+  S.records=S.records.map(r=>r.id===id?rec:r);
+  if(rec.type==='com.cultureblocs.strand') S.strands=S.strands.map(s=>s.id===id?rec:s);
+  return rec;
+}
+document.addEventListener('click', async e=>{
+  const stopEl=e.target.closest('.stop'), strandEl=e.target.closest('.strand');
+  try{
+    if(e.target.classList.contains('edit-btn')){
+      const ed=stopEl.querySelector('.editor'); ed.hidden=!ed.hidden;
+      e.target.textContent=ed.hidden?'edit':'close'; return}
+    if(e.target.classList.contains('strand-edit')){
+      const ed=strandEl.querySelector('.strand-editor'); ed.hidden=!ed.hidden;
+      e.target.textContent=ed.hidden?'edit':'close'; return}
+    if(e.target.classList.contains('photo-btn')){
+      stopEl.querySelector('.photo-in').click(); return}
+    if(e.target.classList.contains('e-save')){
+      const id=stopEl.dataset.id, cur=S.byId[id].body;
+      const tags=stopEl.querySelector('.e-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+      const place=stopEl.querySelector('.e-place').value.trim();
+      const luri=stopEl.querySelector('.e-luri').value.trim();
+      const ltitle=stopEl.querySelector('.e-ltitle').value.trim();
+      const fields={ note: stopEl.querySelector('.note').textContent, tags };
+      if(place) fields.subject={...(cur.subject||{}),name:place};
+      fields.links=luri?[{uri:luri,...(ltitle?{title:ltitle}:{})}]:[];
+      await patch(id,fields); render(); return}
+    if(e.target.classList.contains('s-save')){
+      const id=strandEl.dataset.sid;
+      const place=strandEl.querySelector('.s-place').value.trim();
+      const luri=strandEl.querySelector('.s-luri').value.trim();
+      const ltitle=strandEl.querySelector('.s-ltitle').value.trim();
+      const fields={ title: strandEl.querySelector('.stitle').textContent.trim() };
+      if(place) fields.place={name:place};
+      fields.links=luri?[{uri:luri,...(ltitle?{title:ltitle}:{})}]:[];
+      await patch(id,fields); render(); return}
+    if(e.target.classList.contains('ungroup')){
+      const id=strandEl.dataset.sid;
+      await fetch(cfg.url+'/records/'+id,{method:'DELETE',headers:headers()});
+      await loadDay(); return}
+  }catch(err){ alert('save failed: '+err.message) }
+});
+// note quick-save (⌘/Ctrl+Enter) stays available
+document.addEventListener('keydown', async e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&e.target.classList.contains('note')){
+    e.preventDefault();
+    const id=e.target.closest('.stop').dataset.id;
+    try{ await patch(id,{note:e.target.textContent}) }catch(err){ alert(err.message) }
+  }
+});
+// photo upload
+document.addEventListener('change', async e=>{
+  if(e.target.classList.contains('photo-in')&&e.target.files[0]){
+    const stopEl=e.target.closest('.stop'), id=stopEl.dataset.id, f=e.target.files[0];
+    try{
+      const up=await fetch(cfg.url+'/media',{method:'POST',
+        headers:{'Content-Type':f.type||'application/octet-stream',
+                 ...(cfg.token?{'Authorization':'Bearer '+cfg.token}:{})},
+        body:f});
+      if(!up.ok)throw new Error(await up.text());
+      const m=await up.json();
+      const cur=S.byId[id].body;
+      await patch(id,{media:[...(cur.media||[]),{uri:m.uri,mime:m.mime}]});
+      render();
+    }catch(err){ alert('upload failed: '+err.message) }
+  }
+  if(e.target.classList.contains('pick')){
+    e.target.checked?S.sel.add(e.target.dataset.id):S.sel.delete(e.target.dataset.id);
+    updateSel();
+  }
+});
+
+// ---------- selection & strand creation ----------
+function updateSel(){
+  $('#mkstrand').style.display=S.sel.size?'':'none';
+  $('#selhint').textContent=S.selecting?(S.sel.size?`${S.sel.size} selected`:'tick beads to group them'):'';
+}
+$('#selmode').onclick=()=>{
+  S.selecting=!S.selecting;
+  document.body.classList.toggle('selecting',S.selecting);
+  $('#selmode').textContent=S.selecting?'Done selecting':'Select beads';
+  if(!S.selecting){S.sel.clear();render()}
+  updateSel();
+};
+$('#mkstrand').onclick=async ()=>{
+  const title=prompt('Name this strand (e.g. "Tate Modern, afternoon")');
+  if(title===null)return;
+  const ids=[...S.sel];
+  const members=ids.map(id=>S.byId[id]).sort((a,b)=>a.createdAt<b.createdAt?-1:1);
+  const createdAt=members[0].createdAt;
+  const body={ "$type":"com.cultureblocs.strand", createdAt,
+    title: title.trim()||'Untitled strand',
+    day: $('#day').value+'T00:00:00Z',
+    items: members.map(m=>({uri:ref(m.id)})) };
+  try{
+    await api('/records',{method:'POST',body:JSON.stringify({records:[{
+      dedupeKey:'strand:'+crypto.randomUUID(), type:'com.cultureblocs.strand',
+      sourceApp:'timeline', createdAt, body }]})});
+    S.selecting=false;document.body.classList.remove('selecting');
+    $('#selmode').textContent='Select beads';
+    await loadDay();
+  }catch(err){ alert('strand failed: '+err.message) }
+};
+
+$('#reload').addEventListener('click',async()=>{
+  localStorage.spineUrl=$('#spine').value;
+  localStorage.spineToken=$('#token').value;
+  try{await loadDays();await loadDay()}
+  catch(e){$('#out').className='empty';$('#out').textContent='Spine error: '+e.message}
+});
+$('#day').addEventListener('change',loadDay);
+(async()=>{try{await loadDays();await loadDay()}catch(e){}})();
+</script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+{
+  "lexicon": 1,
+  "id": "com.cultureblocs.bead",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An atomic cultural memory: a visit, a dwell, an encounter, a screening. Minted on-device or by hand; annotated later.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "createdAt",
+          "kind"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "kind": {
+            "type": "string",
+            "knownValues": [
+              "visit",
+              "dwell",
+              "encounter",
+              "screening",
+              "performance",
+              "note"
+            ]
+          },
+          "subject": {
+            "type": "union",
+            "refs": [
+              "com.cultureblocs.defs#workRef",
+              "com.cultureblocs.defs#placeRef",
+              "com.cultureblocs.defs#strongRef"
+            ],
+            "description": "What the bead is about: a work, a place, or a published record (event, exhibition)."
+          },
+          "note": {
+            "type": "string",
+            "maxGraphemes": 3000
+          },
+          "tags": {
+            "type": "array",
+            "maxLength": 8,
+            "items": {
+              "type": "string",
+              "maxGraphemes": 64
+            },
+            "description": "Freeform tags: the CultureBloc mask worn at mint time, ad-hoc event tags (emfcamp26), etc."
+          },
+          "geo": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#geo"
+          },
+          "media": {
+            "type": "array",
+            "maxLength": 10,
+            "items": {
+              "type": "ref",
+              "ref": "com.cultureblocs.defs#mediaRef"
+            }
+          },
+          "prev": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#strongRef",
+            "description": "Previous bead in the day's chain, if any."
+          },
+          "provenance": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#provenance"
+          },
+          "links": {
+            "type": "array",
+            "maxLength": 8,
+            "items": {
+              "type": "ref",
+              "ref": "com.cultureblocs.defs#linkRef"
+            },
+            "description": "Event page, venue page, etc."
+          }
+        }
+      }
+    }
+  }
+}

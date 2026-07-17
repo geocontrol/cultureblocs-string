@@ -1,0 +1,38 @@
+# --- runtime data: the Spine's database, media store, and backups ---
+# Your beads live here. Never push them to a public repo — back them up
+# separately (see README). The directory itself is kept via .gitkeep.
+data/*
+!data/.gitkeep
+
+# migration backups written next to the db by scripts/migrate_*.py
+*.pre-cultureblocs-*.db
+
+# --- capture queues (offline JSONL buffers, may contain unpushed beads) ---
+*.encounters.json
+bridge-queue.jsonl
+queue.jsonl
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- node (only appears if you add tooling later) ---
+node_modules/
+
+# --- exports (generated bundles belong in the *site* repo, not this one) ---
+public-export/
+
+# --- editors & os ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- local env/config ---
+.env
+.env.*
+docker-compose.override.yml

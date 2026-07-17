@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "com.cultureblocs.annotation",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A bookmark/note about a specific work, typically minted by the AR gallery app at the moment of recognition. Meaningful entirely on its own — no bead required.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["createdAt", "work"],
+        "properties": {
+          "createdAt": { "type": "string", "format": "datetime" },
+          "work": { "type": "ref", "ref": "com.cultureblocs.defs#workRef" },
+          "note": { "type": "string", "maxGraphemes": 3000 },
+          "media": {
+            "type": "array",
+            "maxLength": 10,
+            "items": { "type": "ref", "ref": "com.cultureblocs.defs#mediaRef" }
+          },
+          "geo": { "type": "ref", "ref": "com.cultureblocs.defs#geo" },
+          "context": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#strongRef",
+            "description": "Optional exhibition or event record this annotation was made within."
+          },
+          "matchConfidence": {
+            "type": "string",
+            "knownValues": ["embedding", "geometric", "manual"],
+            "description": "How the work was identified: cosine embedding match, ORB geometric verification, or manual entry."
+          },
+          "provenance": { "type": "ref", "ref": "com.cultureblocs.defs#provenance" }
+        }
+      }
+    }
+  }
+}
