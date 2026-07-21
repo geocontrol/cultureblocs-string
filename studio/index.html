@@ -409,7 +409,7 @@ function toRecord(b){
   const body = {
     "$type": "com.cultureblocs.bead",
     createdAt,
-    kind: b.peer ? "encounter" : "visit",
+    kind: b.peer ? "encounter" : "bloc",
     tags: [b.mask],
     provenance: { app: "culturebloc", device, mintedAt: createdAt,
                   mutualMint: !!b.peer, timeAnchored: !!b.timeAnchored }

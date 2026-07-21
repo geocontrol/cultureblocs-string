@@ -43,8 +43,23 @@ class CultureblocsStrands extends HTMLElement {
     const esc = s => (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const hhmm = iso => (iso||'').slice(11,16);
     const kindColor = {visit:'var(--cb-accent,#2B4BC7)', dwell:'#C7860F',
-      encounter:'#B0326E', screening:'#0F6E6B', performance:'#5B2BC7'};
+      encounter:'#B0326E', screening:'#0F6E6B', performance:'#5B2BC7',
+      bloc:'#4A4741', read:'#2E7A4F', listen:'#C74E2B', watch:'#0F6E6B'};
 
+    const noteHtml = note => {
+      if(!note) return '';
+      return note.split('\n\n').map(bk=>{
+        const lines = bk.split('\n').filter(Boolean);
+        const timed = lines.filter(l=>/^\d{2}:\d{2}\s/.test(l)).length;
+        if(lines.length>1 && timed >= lines.length*0.7){
+          return `<ul class="tracks">${lines.map(l=>{
+            const m=l.match(/^(\d{2}:\d{2})\s+(.*)$/);
+            return `<li>${m?`<span class="tt">${esc(m[1])}</span>${esc(m[2])}`:esc(l)}</li>`;
+          }).join('')}</ul>`;
+        }
+        return `<p>${esc(bk)}</p>`;
+      }).join('');
+    };
     const item = it => {
       const isWork = it.$type==='com.cultureblocs.annotation' || it.work;
       const dot = isWork
@@ -61,7 +76,7 @@ class CultureblocsStrands extends HTMLElement {
       return `<li>
         <time>${hhmm(it.createdAt)}</time>${dot}
         <div class="body">${head}
-          ${it.note?`<p>${esc(it.note)}</p>`:''}
+          ${noteHtml(it.note)}
           ${media?`<div class="media">${media}</div>`:''}
           ${links?`<div class="links">${links}</div>`:''}
         </div></li>`;
@@ -75,7 +90,7 @@ class CultureblocsStrands extends HTMLElement {
           (b.strand.links||[]).map(l=>` · <a href="${esc(l.uri)}" target="_blank" rel="noopener">${esc(l.title||'event')}</a>`).join('')}</div>
         ${b.strand.narrative?`<p class="narrative">${esc(b.strand.narrative)}</p>`:''}
       </header>
-      <ul>${b.items.map(item).join('')}</ul>
+      <ul class="stops">${b.items.map(item).join('')}</ul>
     </article>`;
 
     this.#shadow().innerHTML = `<style>
@@ -86,10 +101,11 @@ class CultureblocsStrands extends HTMLElement {
       .meta{font-size:.78em;color:var(--cb-faint,#8A8880);margin:.15rem 0 .6rem}
       .meta a{color:var(--cb-accent,#2B4BC7)}
       .narrative{margin:.2rem 0 .8rem;font-style:italic}
-      ul{list-style:none;margin:0;padding:0;position:relative}
-      ul::before{content:"";position:absolute;left:3.05rem;top:.3rem;bottom:.3rem;
+      ul{list-style:none;margin:0;padding:0}
+      .stops{position:relative}
+      .stops::before{content:"";position:absolute;left:3.05rem;top:.3rem;bottom:.3rem;
         width:2px;background:var(--cb-thread,#C9C7C0)}
-      li{position:relative;display:grid;grid-template-columns:2.4rem 1.4rem 1fr;
+      .stops>li{position:relative;display:grid;grid-template-columns:2.4rem 1.4rem 1fr;
         gap:.15rem;padding:0 0 1.05rem;align-items:start}
       time{font-size:.72em;color:var(--cb-faint,#8A8880);text-align:right;
         padding-top:.2em;font-variant-numeric:tabular-nums}
@@ -97,7 +113,11 @@ class CultureblocsStrands extends HTMLElement {
         box-shadow:0 0 0 3px var(--cb-card,#fff0)}
       .dot.sq{border-radius:2px;background:transparent;border:2px solid var(--cb-ink,#1B1D22);
         width:9px;height:9px}
-      .body p{margin:.1rem 0 0;font-size:.92em;line-height:1.45}
+      .body p{margin:.1rem 0 0;font-size:.92em;line-height:1.45;white-space:pre-line}
+      .tracks{margin:.4rem 0 0;font-size:.8em;line-height:1.6}
+      .tracks li{display:block;padding:0}
+      .tt{font-variant-numeric:tabular-nums;color:var(--cb-faint,#8A8880);
+        margin-right:.55em;font-size:.92em}
       .work{font-weight:600;font-size:.92em}
       .artist{font-style:italic;font-size:.88em}
       .media{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}

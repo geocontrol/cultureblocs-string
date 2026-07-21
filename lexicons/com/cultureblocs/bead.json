@@ -20,13 +20,18 @@
           "kind": {
             "type": "string",
             "knownValues": [
+              "bloc",
               "visit",
               "dwell",
               "encounter",
+              "read",
+              "listen",
+              "watch",
               "screening",
               "performance",
               "note"
-            ]
+            ],
+            "description": "What kind of cultural moment: bloc is the neutral default (a marked moment); read/listen/watch cover at-home culture; visit/dwell/screening/performance cover being out; encounter is a mutual mint."
           },
           "subject": {
             "type": "union",

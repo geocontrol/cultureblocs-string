@@ -9,6 +9,7 @@
     --plaster:#FAFAF9; --ink:#1B1D22; --faint:#8A8880; --thread:#C9C7C0;
     --visit:#2B4BC7; --dwell:#C7860F; --encounter:#B0326E;
     --screening:#0F6E6B; --performance:#5B2BC7; --note:#6E6C66;
+    --bloc:#4A4741; --read:#2E7A4F; --listen:#C74E2B; --watch:#0F6E6B;
     --card:#FFFFFF; --card-edge:#E4E2DB; --wash:#F2F1EC;
     --disp:Futura,"Avenir Next","Century Gothic",sans-serif;
     --body:Charter,Georgia,serif;
@@ -50,6 +51,15 @@
   .stop .note[contenteditable]:empty::before{content:"add a note…";color:var(--faint)}
   .stop .note[contenteditable]:focus{outline:1px dashed var(--visit);
         outline-offset:3px;border-radius:2px}
+  /* machine-minted beads: a parallel dotted rail, hollow ring dots */
+  .string.has-machine::after{content:"";position:absolute;left:-13px;top:.4rem;bottom:.4rem;
+        width:2px;background:repeating-linear-gradient(to bottom,
+        var(--thread) 0 5px,transparent 5px 11px)}
+  .stop.machine .bead{left:-20px;background:var(--plaster);
+        border:2.5px solid var(--k,#999);width:12px;height:12px}
+  .stop.machine .kind::after{content:" · auto";color:var(--faint);
+        text-transform:none;letter-spacing:0}
+  .tools .release-btn:hover{color:var(--encounter)}
   .stop.annotation .bead{border-radius:2px;background:var(--card);
         border:2.5px solid var(--ink);left:-8px;width:14px;height:14px}
   .label-card{background:var(--card);border:1px solid var(--card-edge);
@@ -153,13 +163,17 @@ function anchoredBadge(r){
   const p=r.body.provenance||{};
   return p.timeAnchored===false?`<span class="chip" title="time is a best guess">~time</span>`:'';
 }
-function stopTools(){
-  return `<div class="tools"><button class="edit-btn">edit</button><button class="photo-btn">+ photo</button></div>
+function stopTools(machine){
+  return `<div class="tools"><button class="edit-btn">edit</button><button class="photo-btn">+ photo</button>${
+    machine?'<button class="release-btn">release</button>':''}</div>
   <input type="file" accept="image/*" class="photo-in" hidden>`;
 }
 function editor(b){
   const l=(b.links||[])[0]||{};
+  const KINDS=['bloc','visit','dwell','encounter','read','listen','watch','screening','performance','note'];
+  const kindOpts=KINDS.map(k=>`<option value="${k}" ${k===(b.kind||'bloc')?'selected':''}>${k}</option>`).join('');
   return `<div class="editor" hidden>
+    <div><label>kind</label><select class="e-kind">${kindOpts}</select></div>
     <div><label>tags (comma separated)</label><input class="e-tags" value="${esc((b.tags||[]).join(', '))}"></div>
     <div><label>place / occasion</label><input class="e-place" value="${esc(b.subject&&b.subject.name||'')}" placeholder="Tate Modern"></div>
     <div class="grid2">
@@ -169,17 +183,20 @@ function editor(b){
     <div class="row"><button class="primary e-save">Save</button><span class="savemsg"></span></div>
   </div>`;
 }
+const MACHINE_APPS=['scrobbler'];   // sources whose beads are proposals, not mint facts
+function isMachine(r){return MACHINE_APPS.includes((r.body.provenance||{}).app)}
 function renderBead(r){
   const b=r.body,k=b.kind||'note';
   const place=b.subject&&b.subject.name?b.subject.name:'';
-  return `<div class="stop" data-id="${r.id}" style="--k:var(--${k})">
+  const machine=isMachine(r);
+  return `<div class="stop ${machine?'machine':''}" data-id="${r.id}" style="--k:var(--${k})">
     <input type="checkbox" class="pick" data-id="${r.id}" ${S.sel.has(r.id)?'checked':''}>
     <time>${hhmm(r.createdAt)}</time><span class="bead"></span>
     <div class="kind">${esc(k)}</div>
     ${place?`<div class="title">${esc(place)}</div>`:''}
     <div class="meta">${esc(r.sourceApp)}${b.provenance&&b.provenance.device?' · '+esc(b.provenance.device):''} ${anchoredBadge(r)}</div>
     <p class="note" contenteditable="plaintext-only">${esc(b.note||'')}</p>
-    ${chips(b)}${thumbs(b)}${stopTools()}${editor(b)}
+    ${chips(b)}${thumbs(b)}${stopTools(machine)}${editor(b)}
   </div>`;
 }
 function renderAnnotation(r){
@@ -240,7 +257,8 @@ function render(){
     }
   });
   $('#out').className='';
-  $('#out').innerHTML=`<div class="string">${html}</div>`;
+  const hasMachine=items.some(isMachine);
+  $('#out').innerHTML=`<div class="string${hasMachine?' has-machine':''}">${html}</div>`;
 }
 
 async function loadDay(){
@@ -278,6 +296,7 @@ document.addEventListener('click', async e=>{
       const luri=stopEl.querySelector('.e-luri').value.trim();
       const ltitle=stopEl.querySelector('.e-ltitle').value.trim();
       const fields={ note: stopEl.querySelector('.note').textContent, tags };
+      const kindSel=stopEl.querySelector('.e-kind'); if(kindSel) fields.kind=kindSel.value;
       if(place) fields.subject={...(cur.subject||{}),name:place};
       fields.links=luri?[{uri:luri,...(ltitle?{title:ltitle}:{})}]:[];
       await patch(id,fields); render(); return}
@@ -290,6 +309,15 @@ document.addEventListener('click', async e=>{
       if(place) fields.place={name:place};
       fields.links=luri?[{uri:luri,...(ltitle?{title:ltitle}:{})}]:[];
       await patch(id,fields); render(); return}
+    if(e.target.classList.contains('release-btn')){
+      const id=stopEl.dataset.id;
+      if(e.target.dataset.armed!=='1'){
+        e.target.dataset.armed='1'; e.target.textContent='release?';
+        setTimeout(()=>{e.target.dataset.armed='';e.target.textContent='release'},4000);
+        return}
+      const rr=await fetch(cfg.url+'/records/'+id,{method:'DELETE',headers:headers()});
+      if(!rr.ok){alert('release failed: '+await rr.text());return}
+      await loadDay(); return}
     if(e.target.classList.contains('ungroup')){
       const id=strandEl.dataset.sid;
       await fetch(cfg.url+'/records/'+id,{method:'DELETE',headers:headers()});
