@@ -1,4 +1,5 @@
-"""The Spine — a validated record bucket for cultureblocs Tier 0 data.
+"""The String — a validated record bucket for cultureblocs Tier 0 data.
+(Beads on a thread; in the lineage of the quipu. Formerly "the Spine".)
 
 Interfaces:
   POST  /records          batch ingest, idempotent on dedupeKey
@@ -25,14 +26,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from . import publisher
 from .db import Store
 from .lexicon import LexiconRegistry
 
-DB_PATH = os.environ.get("SPINE_DB", "/data/spine.db")
-LEXICON_DIR = Path(os.environ.get("SPINE_LEXICONS", "/lexicons"))
-TOKEN = os.environ.get("SPINE_TOKEN")
+DB_PATH = os.environ.get("STRING_DB") or os.environ.get("SPINE_DB", "/data/string.db")
+LEXICON_DIR = Path(os.environ.get("STRING_LEXICONS") or os.environ.get("SPINE_LEXICONS", "/lexicons"))
+TOKEN = os.environ.get("STRING_TOKEN") or os.environ.get("SPINE_TOKEN")
 
-app = FastAPI(title="cultureblocs spine", version="0.1.0")
+app = FastAPI(title="cultureblocs string", version="0.2.0")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
     allow_headers=["*"],
@@ -130,6 +132,80 @@ def changes(since: int = 0, limit: int = 500):
     return {"changes": items, "cursor": cursor}
 
 
+class IdentityIn(BaseModel):
+    handle: str
+    appPassword: str
+    pds: str = "https://bsky.social"
+
+
+@app.get("/identities", dependencies=[Depends(auth)])
+def list_identities():
+    """Names, handles, PDS — never the app passwords."""
+    return {"identities": store.identities()}
+
+
+@app.put("/identities/{name}", dependencies=[Depends(auth)])
+def put_identity(name: str, body: IdentityIn):
+    store.identity_put(name, body.handle, body.appPassword, body.pds)
+    return {"identities": store.identities()}
+
+
+@app.delete("/identities/{name}", dependencies=[Depends(auth)])
+def delete_identity(name: str):
+    if not store.identity_delete(name):
+        raise HTTPException(status_code=404, detail="not found")
+    return {"identities": store.identities()}
+
+
+class PublishIn(BaseModel):
+    identity: str
+
+
+@app.post("/publish/{strand_id}", dependencies=[Depends(auth)])
+def publish(strand_id: str, body: PublishIn):
+    ident = store.identity_get(body.identity)
+    if ident is None:
+        raise HTTPException(status_code=404, detail="unknown identity")
+    try:
+        return publisher.publish_strand(store, strand_id, ident)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"publish failed: {exc}")
+
+
+@app.post("/unpublish/{strand_id}", dependencies=[Depends(auth)])
+def unpublish(strand_id: str, body: PublishIn):
+    ident = store.identity_get(body.identity)
+    if ident is None:
+        raise HTTPException(status_code=404, detail="unknown identity")
+    try:
+        return publisher.unpublish_strand(store, strand_id, ident)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"unpublish failed: {exc}")
+
+
+class PublishedIn(BaseModel):
+    uri: str
+    hash: str
+
+
+@app.post("/records/{rid}/published", dependencies=[Depends(auth)])
+def set_published(rid: str, body: PublishedIn):
+    if not store.set_published(rid, body.uri, body.hash):
+        raise HTTPException(status_code=404, detail="not found")
+    return store.get(rid)
+
+
+@app.delete("/records/{rid}/published", dependencies=[Depends(auth)])
+def clear_published(rid: str):
+    if not store.set_published(rid, None, None):
+        raise HTTPException(status_code=404, detail="not found")
+    return store.get(rid)
+
+
 @app.delete("/records/{rid}", dependencies=[Depends(auth)])
 def delete(rid: str):
     """For curation records (strands). Beads are mint facts — the UI should
@@ -140,7 +216,7 @@ def delete(rid: str):
 
 
 # -- media: content-addressed blob store ---------------------------------
-MEDIA_DIR = Path(os.environ.get("SPINE_MEDIA", "/data/media"))
+MEDIA_DIR = Path(os.environ.get("STRING_MEDIA") or os.environ.get("SPINE_MEDIA", "/data/media"))
 MEDIA_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
              "image/gif": ".gif", "image/heic": ".heic"}
 MEDIA_NAME = re.compile(r"^[0-9a-f]{64}\.[a-z0-9]{2,5}$")

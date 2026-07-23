@@ -159,6 +159,9 @@ function thumbs(b){
     return `<img src="${esc(src)}" alt="${esc(x.alt||'')}">`}).join('');
   return m?`<div class="thumbs">${m}</div>`:'';
 }
+function pubBadge(r){
+  return r.publishedUri?`<span class="chip" style="color:var(--screening);border-color:var(--screening)" title="${esc(r.publishedUri)}">published</span>`:'';
+}
 function anchoredBadge(r){
   const p=r.body.provenance||{};
   return p.timeAnchored===false?`<span class="chip" title="time is a best guess">~time</span>`:'';
@@ -194,7 +197,7 @@ function renderBead(r){
     <time>${hhmm(r.createdAt)}</time><span class="bead"></span>
     <div class="kind">${esc(k)}</div>
     ${place?`<div class="title">${esc(place)}</div>`:''}
-    <div class="meta">${esc(r.sourceApp)}${b.provenance&&b.provenance.device?' · '+esc(b.provenance.device):''} ${anchoredBadge(r)}</div>
+    <div class="meta">${esc(r.sourceApp)}${b.provenance&&b.provenance.device?' · '+esc(b.provenance.device):''} ${anchoredBadge(r)} ${pubBadge(r)}</div>
     <p class="note" contenteditable="plaintext-only">${esc(b.note||'')}</p>
     ${chips(b)}${thumbs(b)}${stopTools(machine)}${editor(b)}
   </div>`;
@@ -222,8 +225,8 @@ function renderStrand(st, members){
   return `<div class="strand" data-sid="${st.id}">
     <div class="shead">
       <span class="stitle" contenteditable="plaintext-only">${esc(b.title||'Untitled strand')}</span>
-      <span class="smeta">${members.length} beads${place}</span>${links}
-      <span class="stools tools"><button class="strand-edit">edit</button><button class="ungroup">ungroup</button></span>
+      <span class="smeta">${members.length} beads${place}</span>${pubBadge(st)}${links}
+      <span class="stools tools"><button class="strand-edit">edit</button><button class="strand-publish">${st.publishedUri?'republish':'publish'}</button>${st.publishedUri?'<button class="strand-unpublish">unpublish</button>':''}<button class="ungroup">ungroup</button></span>
     </div>
     <div class="editor strand-editor" hidden>
       <div><label>place</label><input class="s-place" value="${esc(b.place&&b.place.name||'')}" placeholder="Tate Modern"></div>
@@ -318,6 +321,28 @@ document.addEventListener('click', async e=>{
       const rr=await fetch(cfg.url+'/records/'+id,{method:'DELETE',headers:headers()});
       if(!rr.ok){alert('release failed: '+await rr.text());return}
       await loadDay(); return}
+    if(e.target.classList.contains('strand-publish')||e.target.classList.contains('strand-unpublish')){
+      const unpub=e.target.classList.contains('strand-unpublish');
+      const sid=strandEl.dataset.sid, st=S.byId[sid];
+      const {identities}=await api('/identities');
+      if(!identities.length){alert('No identities held yet. Add one:\n\ncurl -X PUT '+cfg.url+'/identities/personal -H "content-type: application/json" -d \'{"handle":"you.bsky.social","appPassword":"xxxx-xxxx-xxxx-xxxx"}\''); return}
+      let ident=identities[0].name;
+      if(identities.length>1){
+        ident=prompt('Publish as which identity?\n'+identities.map((i,n)=>`${n+1}. ${i.name} (${i.handle})`).join('\n')+'\n\nEnter number:','1');
+        if(ident===null)return;
+        ident=(identities[parseInt(ident)-1]||{}).name;
+        if(!ident){alert('no such identity');return}
+      }
+      const handle=identities.find(i=>i.name===ident).handle;
+      const verb=unpub?'UNPUBLISH':'publish';
+      if(!confirm(`${verb} "${st.body.title||'Untitled strand'}" as ${handle}?`))return;
+      e.target.textContent=unpub?'unpublishing…':'publishing…';
+      try{
+        await api((unpub?'/unpublish/':'/publish/')+sid,{method:'POST',
+          body:JSON.stringify({identity:ident})});
+        await loadDay();
+      }catch(err){alert(`${verb} failed: `+err.message);await loadDay()}
+      return}
     if(e.target.classList.contains('ungroup')){
       const id=strandEl.dataset.sid;
       await fetch(cfg.url+'/records/'+id,{method:'DELETE',headers:headers()});

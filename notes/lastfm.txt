@@ -1,0 +1,4 @@
+Application name	Culturebloc-Scrobble
+API key	c00f3db3c02aa274c57270b060e25e0f
+Shared secret	80cff280e68e10d281f7ebb669c171b1
+Registered to	marksimpkins

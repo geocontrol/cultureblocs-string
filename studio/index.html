@@ -138,12 +138,12 @@
   </div>
 
   <div id="spineZone" style="display:none;margin-top:22px;padding:16px 18px;border:1px solid var(--card-edge);border-radius:12px;background:var(--card)">
-    <div style="font-family:var(--serif);font-size:16px;margin-bottom:4px">Push to the Spine</div>
-    <div class="note" style="margin:0 0 12px">Send the kept beads to the cultureblocs Spine as <b>com.cultureblocs.bead</b> records. Safe to repeat — the Spine dedupes on the bead's key.</div>
+    <div style="font-family:var(--serif);font-size:16px;margin-bottom:4px">Push to the String</div>
+    <div class="note" style="margin:0 0 12px">Send the kept beads to the cultureblocs String as <b>com.cultureblocs.bead</b> records. Safe to repeat — the String dedupes on the bead's key.</div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <input type="text" id="spineUrl" value="http://localhost:8100" style="flex:1;min-width:200px" aria-label="Spine URL">
       <input type="password" id="spineToken" placeholder="token (if set)" style="width:130px" aria-label="Spine token">
-      <button class="btn p" id="pushSpine">Push to Spine</button>
+      <button class="btn p" id="pushSpine">Push to String</button>
     </div>
     <div class="note" id="spinenote" style="margin-top:10px"></div>
   </div>
@@ -448,7 +448,7 @@ $('pushSpine').onclick = async ()=>{
     if (bad.length) msg += ` ${bad.length} rejected: ${bad[0].problems.join('; ')}`;
     $('spinenote').textContent = msg;
   }catch(e){
-    $('spinenote').textContent = `couldn't reach the Spine at ${url} — is it running? (docker compose up)`;
+    $('spinenote').textContent = `couldn't reach the String at ${url} — is it running? (docker compose up)`;
   }
 };
 

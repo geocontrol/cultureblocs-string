@@ -1,11 +1,20 @@
 /* <cultureblocs-strands> — embed published bead strands on any page.
  *
- * Usage on a static site (e.g. geekyoto.com):
- *   <script type="module" src="/cultureblocs/cultureblocs-strands.js"></script>
+ * Two data sources, same markup:
+ *
+ * BAKED (static export from the Spine):
  *   <cultureblocs-strands src="/cultureblocs/strands.json" limit="1"></cultureblocs-strands>
  *
+ * LIVE (straight from the Atmosphere — an ATProto repo over public XRPC):
+ *   <cultureblocs-strands actor="geocontrol.bsky.social" limit="1"></cultureblocs-strands>
+ *   The component resolves handle -> DID -> PDS endpoint (plc.directory),
+ *   lists com.cultureblocs.strand records, and fetches each strand's beads
+ *   by strongRef. No API keys: these are public reads with open CORS.
+ *
  * Attributes:
- *   src    — path/URL of the exported strands.json (required)
+ *   actor  — handle or did:plc:… whose repo to read (live mode; wins over src)
+ *   pds    — optional PDS base URL override (skips discovery)
+ *   src    — path/URL of an exported strands.json (baked mode)
  *   limit  — show only the newest N strands (default: all)
  *
  * Theming (CSS custom properties on the element or an ancestor):
@@ -15,20 +24,61 @@
  * Today the src is a static export; when a PDS exists, a loader that
  * fetches the same shapes from public XRPC can feed the identical markup.
  */
+const XRPC_PUBLIC = 'https://public.api.bsky.app/xrpc';
+
+export async function fetchActorStrands(actor, {pds=null, limit=0, fetchFn=fetch}={}){
+  const j = async url => { const r = await fetchFn(url); if(!r.ok) throw new Error(url+': '+r.status); return r.json(); };
+  let did = actor;
+  if(!actor.startsWith('did:'))
+    did = (await j(`${XRPC_PUBLIC}/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(actor)}`)).did;
+  if(!pds){
+    if(!did.startsWith('did:plc:')) throw new Error('only did:plc supported without pds override');
+    const doc = await j(`https://plc.directory/${did}`);
+    pds = (doc.service||[]).find(s=>s.id==='#atproto_pds')?.serviceEndpoint;
+    if(!pds) throw new Error('no PDS endpoint in DID document');
+  }
+  const list = await j(`${pds}/xrpc/com.atproto.repo.listRecords?repo=${did}` +
+    `&collection=com.cultureblocs.strand&limit=50`);
+  let strands = (list.records||[]).sort((a,b)=>
+    (b.value.createdAt||'') < (a.value.createdAt||'') ? -1 : 1);
+  if(limit>0) strands = strands.slice(0, limit);
+  const bundles = [];
+  for(const s of strands){
+    const items = (await Promise.all((s.value.items||[]).map(async ref=>{
+      try{
+        const [,,didPart,coll,rkey] = ref.uri.split('/');
+        const rec = await j(`${pds}/xrpc/com.atproto.repo.getRecord?repo=${didPart}` +
+          `&collection=${coll}&rkey=${rkey}`);
+        return rec.value;
+      }catch(e){ return null; }
+    }))).filter(Boolean)
+       .sort((a,b)=>(a.createdAt||'') < (b.createdAt||'') ? -1 : 1);
+    bundles.push({strand: s.value, items});
+  }
+  return bundles;
+}
+
 class CultureblocsStrands extends HTMLElement {
-  static get observedAttributes(){ return ['src','limit'] }
+  static get observedAttributes(){ return ['actor','pds','src','limit'] }
   attributeChangedCallback(){ this.#load() }
   connectedCallback(){ this.#load() }
 
   async #load(){
+    const actor = this.getAttribute('actor');
     const src = this.getAttribute('src');
-    if(!src) return;
+    const limit = parseInt(this.getAttribute('limit') || '0');
     try{
+      if(actor){
+        const bundles = await fetchActorStrands(actor,
+          {pds: this.getAttribute('pds'), limit});
+        this.#render(bundles, '');
+        return;
+      }
+      if(!src) return;
       const res = await fetch(src);
       if(!res.ok) throw new Error(res.status);
       const doc = await res.json();
       let strands = doc.strands || [];
-      const limit = parseInt(this.getAttribute('limit') || '0');
       if(limit > 0) strands = strands.slice(0, limit);
       this.#render(strands, src);
     }catch(e){

@@ -73,7 +73,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("cmd", choices=["list", "export"])
     p.add_argument("strands", nargs="*", help="strand record ids to export")
-    p.add_argument("--spine", default="http://localhost:8100")
+    p.add_argument("--string", "--spine", dest="spine", default="http://localhost:8100")
     p.add_argument("--token")
     p.add_argument("--out", default="./public-export")
     p.add_argument("--media-src", default="./data/media",

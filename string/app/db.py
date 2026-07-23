@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS records (
 CREATE INDEX IF NOT EXISTS idx_records_created ON records(created_at);
 CREATE INDEX IF NOT EXISTS idx_records_type ON records(type);
 
+CREATE TABLE IF NOT EXISTS identities (
+    name         TEXT PRIMARY KEY,
+    handle       TEXT NOT NULL,
+    app_password TEXT NOT NULL,
+    pds          TEXT NOT NULL DEFAULT 'https://bsky.social'
+);
+
 CREATE TABLE IF NOT EXISTS changes (
     seq        INTEGER PRIMARY KEY AUTOINCREMENT,
     record_id  TEXT NOT NULL,
@@ -105,6 +112,16 @@ class Store:
                 (rid, "delete", now_iso(), row["body"]))
         return True
 
+    def set_published(self, rid: str, uri: str | None, phash: str | None) -> bool:
+        cur = self.conn.execute("SELECT id FROM records WHERE id=?", (rid,))
+        if cur.fetchone() is None:
+            return False
+        with self.conn:
+            self.conn.execute(
+                "UPDATE records SET published_uri=?, published_hash=? WHERE id=?",
+                (uri, phash, rid))
+        return True
+
     # -- reads -----------------------------------------------------------
     def get(self, rid: str) -> dict | None:
         cur = self.conn.execute("SELECT * FROM records WHERE id=?", (rid,))
@@ -141,6 +158,30 @@ class Store:
             "FROM records GROUP BY day ORDER BY day DESC")
         return [{"day": r["day"], "count": r["n"]} for r in cur]
 
+    # -- identities ------------------------------------------------------
+    def identity_put(self, name: str, handle: str, app_password: str, pds: str) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO identities (name, handle, app_password, pds) VALUES (?,?,?,?) "
+                "ON CONFLICT(name) DO UPDATE SET handle=excluded.handle, "
+                "app_password=excluded.app_password, pds=excluded.pds",
+                (name, handle, app_password, pds))
+
+    def identity_get(self, name: str) -> dict | None:
+        cur = self.conn.execute(
+            "SELECT name, handle, app_password, pds FROM identities WHERE name=?", (name,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+    def identities(self) -> list[dict]:
+        cur = self.conn.execute("SELECT name, handle, pds FROM identities ORDER BY name")
+        return [dict(r) for r in cur]      # never returns app_password
+
+    def identity_delete(self, name: str) -> bool:
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM identities WHERE name=?", (name,))
+        return cur.rowcount > 0
+
     @staticmethod
     def _row(row: sqlite3.Row) -> dict:
         return {
@@ -153,5 +194,6 @@ class Store:
             "ingestedAt": row["ingested_at"],
             "revision": row["revision"],
             "publishedUri": row["published_uri"],
+            "publishedHash": row["published_hash"],
             "body": json.loads(row["body"]),
         }

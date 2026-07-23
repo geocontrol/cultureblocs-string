@@ -1,15 +1,15 @@
 services:
-  spine:
-    build: ./spine
+  string:
+    build: ./string
     ports: ["8100:8100"]
     volumes:
       - ./data:/data
       - ./lexicons:/lexicons:ro
     environment:
-      SPINE_DB: /data/spine.db
-      SPINE_LEXICONS: /lexicons
-      SPINE_MEDIA: /data/media
-      # SPINE_TOKEN: change-me        # uncomment to require auth
+      STRING_DB: /data/string.db
+      STRING_LEXICONS: /lexicons
+      STRING_MEDIA: /data/media
+      # STRING_TOKEN: change-me        # uncomment to require auth
     restart: unless-stopped
 
   timeline:

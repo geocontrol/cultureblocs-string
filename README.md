@@ -1,4 +1,9 @@
-# cultureblocs spine
+# cultureblocs string
+
+*Beads on a thread — in the lineage of the quipu, the Andean
+knot-records. Formerly "the Spine"; the service renamed but the
+API, data, and `spine://` record URIs are unchanged, and old
+`SPINE_*` env vars still work.*
 
 Tier 0 record bucket for the cultureblocs cultural graph. Every app
 (CultureBloc bridge, AR gallery, manual entry) is an independent producer
@@ -16,7 +21,7 @@ ATProto PDS is a copy, not a migration.
     sdk/python/                 offline capture queue (port to Swift for the AR app)
     bridge/                     CultureBloc mint-log -> bead hydrator (script path)
     studio/                     CultureBloc Studio — pull totem over Web Serial,
-                                annotate, push beads to the Spine (primary device path)
+                                annotate, push beads to the String (primary device path)
     timeline/                   single-file day view ("the day's string")
     scripts/seed_demo.py        example day (Tate / Hockney / Curzon)
 
@@ -24,27 +29,27 @@ ATProto PDS is a copy, not a migration.
 
     docker compose up -d --build
     python scripts/seed_demo.py            # seed the example day
-    open http://localhost:8101             # timeline (Spine at :8100)
+    open http://localhost:8101             # timeline (String at :8100)
     open http://localhost:8102             # CultureBloc Studio
 
 Or without Docker:
 
-    pip install -r spine/requirements.txt
-    SPINE_DB=./data/spine.db SPINE_LEXICONS=./lexicons \
-      uvicorn app.main:app --app-dir spine --port 8100
+    pip install -r string/requirements.txt
+    STRING_DB=./data/string.db STRING_LEXICONS=./lexicons \
+      uvicorn app.main:app --app-dir string --port 8100
 
-Auth: set `SPINE_TOKEN` in the compose file to require
+Auth: set `STRING_TOKEN` in the compose file to require
 `Authorization: Bearer <token>` on every call. At-venue access without
 exposing anything publicly: put the host on Tailscale. Backup: copy
-`data/spine.db` plus any `*.jsonl` capture queues.
+`data/string.db` plus any `*.jsonl` capture queues.
 
 ## CultureBloc Studio (the totem's desk)
 
-The primary path from the StickS3 totem into the Spine. Pull beads over
+The primary path from the StickS3 totem into the String. Pull beads over
 Web Serial (Chrome/Edge; `http://localhost:8102` is a secure context —
 a LAN IP is not, so use Tailscale HTTPS or open the file directly from
 another machine), name the occasion, retag masks, annotate, keep/release,
-then **Push to Spine** — kept beads become `com.cultureblocs.bead` records.
+then **Push to String** — kept beads become `com.cultureblocs.bead` records.
 
 Timestamp handling, best truth first: current-epoch elapsed beads resolve
 to exact UTC instants via the `---NOW <n> EPOCH <k>---` anchor (correct
@@ -78,7 +83,7 @@ when the browser isn't in the loop:
 
 Time anchoring back-computes UTC from the device's monotonic ticks (no
 RTC needed). `parse_mint_events()` is the marked adaptation point for the
-real C4 sync export. Offline-safe: unreachable Spine leaves records in
+real C4 sync export. Offline-safe: unreachable String leaves records in
 the local queue; re-run to flush.
 
 ## AR gallery app
@@ -119,10 +124,10 @@ selection is the consent act.
 
    Target whatever folder your generator serves at the site root:
    `public/` (Astro/Next/plain Vercel), `static/` (Hugo), a passthrough
-   dir (Eleventy). If the Spine runs elsewhere (e.g. Docker on a home
+   dir (Eleventy). If the String runs elsewhere (e.g. Docker on a home
    server), run the export from any machine with `--spine http://<host>:8100`
    over Tailscale — but note `--media-src` must be a local path to the
-   Spine's media directory, so either run the script on the host and copy
+   String's media directory, so either run the script on the host and copy
    the output folder over, or mount/sync `data/media`.
 4. **Add the component** (once):
 
@@ -155,3 +160,23 @@ shape, and the component neither knows nor cares that it is reading a
 static file — when a PDS exists, a loader fetching the same shapes from
 public XRPC feeds identical markup. Baked vs live becomes a per-page
 choice, not a rewrite.
+
+## Scrobble worker (Sonos -> Last.fm -> listen beads)
+
+`workers/scrobbler.py` polls Last.fm recent tracks, clusters plays into
+listening sessions (>30-min gap = new session), and mints one `listen`
+bead per **closed** session with `provenance.app: "scrobbler"` — so the
+timeline shows them on the dotted machine rail with a release button,
+and they flow through normal curation. Idempotent: dedupe on the first
+track's timestamp; re-runs are no-ops; open or window-truncated
+sessions wait for the next run.
+
+    LASTFM_USER=you LASTFM_API_KEY=xxx python workers/scrobbler.py
+    # options: --spine --token --gap 30 --lookback 48 --dry-run
+    # loop mode: --daemon --interval 900
+
+Only the API key is needed (public read of your own history — un-hide
+"recent listening" in Last.fm privacy if empty). Run hourly via cron,
+or on macOS a LaunchAgent with StartInterval 3600, alongside
+sonos-lastfm which feeds the account. `--from-json export.json` imports
+a saved getRecentTracks payload (testing or bulk history import).
