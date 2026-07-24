@@ -49,6 +49,7 @@ Three principles, enforced by architecture rather than policy:
 | :8100 | String API |
 | :8101 | Timeline ("the day's string") |
 | :8102 | CultureBloc Studio |
+| :8103 | Pocket Totem (PWA — phone minting) |
 
 Open the timeline, load a day, and you have the whole loop minus a totem.
 
@@ -138,6 +139,8 @@ up with `sqlite3 data/string.db ".backup backup.db"` and a copy of
   cultureblocs.com a resolvable schema authority (done; kept as the
   update mechanism).
 - [PROMOTER.md](PROMOTER.md) — publishing strands as signed records.
+- [HOST-SPEC.md](HOST-SPEC.md) — the always-on host: a Raspberry Pi
+  as a DataBrick for the household's cultural memory.
 - [MEETUP-RUNBOOK.md](MEETUP-RUNBOOK.md) — an event, end to end:
   announce, mint on the night, tell, publish.
 - [skill/cultureblocs-string/SKILL.md](skill/cultureblocs-string/SKILL.md)
@@ -146,7 +149,7 @@ up with `sqlite3 data/string.db ".backup backup.db"` and a copy of
 ## Related
 
 - **cultureblocs.com** — the schema commons, apps, and London meetup
-  ([site repo](https://github.com/Geocontrol/cultureblocs-site) · the meetup page renders
+  ([site repo](https://github.com/Geocontrol) · the meetup page renders
   strands live from `@cultureblocs.com`).
 - The embed component's canonical copy is `web/cultureblocs-strands.js`
   in THIS repo; site repos carry copies — copy outward only.

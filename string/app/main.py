@@ -167,7 +167,7 @@ def publish(strand_id: str, body: PublishIn):
     if ident is None:
         raise HTTPException(status_code=404, detail="unknown identity")
     try:
-        return publisher.publish_strand(store, strand_id, ident)
+        return publisher.publish_strand(store, strand_id, ident, media_dir=MEDIA_DIR)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:

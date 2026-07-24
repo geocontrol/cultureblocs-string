@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pocket Totem</title>
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --void:#000; --paper:#EDEDED; --dim:#5A5A5A; --red:#D71921;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--void);color:var(--paper);font:12px/1.5 var(--mono);
+  display:flex;flex-direction:column;align-items:center;
+  padding:max(env(safe-area-inset-top),14px) 16px max(env(safe-area-inset-bottom),14px);
+  user-select:none}
+header{width:100%;max-width:420px;display:flex;justify-content:space-between;
+  align-items:center;letter-spacing:.28em;font-size:10px;color:var(--dim)}
+header b{color:var(--paper);font-weight:400}
+header button{background:none;border:0;color:var(--dim);font:inherit;
+  letter-spacing:.28em;cursor:pointer;padding:8px 0 8px 8px}
+header button:focus-visible{outline:1px solid var(--paper)}
+main{flex:1;width:100%;max-width:420px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:22px;min-height:0}
+canvas{touch-action:manipulation;cursor:pointer;max-width:100%;height:auto}
+#masks{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+#masks button{background:none;border:1px solid var(--dim);border-radius:999px;
+  color:var(--dim);font:10px var(--mono);letter-spacing:.22em;padding:7px 14px;
+  cursor:pointer;display:flex;align-items:center;gap:7px}
+#masks button .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+#masks button.on{color:var(--void);border-color:transparent}
+#note{width:100%;max-width:340px;background:none;border:0;
+  border-bottom:1px solid var(--dim);color:var(--paper);
+  font:13px var(--mono);letter-spacing:.06em;padding:8px 2px;text-align:center}
+#note::placeholder{color:var(--dim)}
+#note:focus{outline:none;border-bottom-color:var(--paper)}
+footer{width:100%;max-width:420px;display:flex;justify-content:center;gap:8px;
+  align-items:center;font-size:10px;letter-spacing:.24em;color:var(--dim);
+  min-height:2em;text-transform:uppercase}
+footer .q{width:6px;height:6px;border-radius:50%;background:var(--red);display:none}
+footer.queued .q{display:block}
+#settings{position:fixed;inset:0;background:var(--void);display:none;
+  flex-direction:column;gap:18px;padding:24px;max-width:420px;margin:0 auto;
+  overflow:auto}
+#settings.open{display:flex}
+#settings label{display:block;color:var(--dim);letter-spacing:.24em;font-size:10px;
+  text-transform:uppercase;margin-bottom:6px}
+#settings input,#settings textarea{width:100%;background:none;border:1px solid var(--dim);
+  color:var(--paper);font:13px var(--mono);padding:10px;border-radius:2px}
+#settings textarea{min-height:90px}
+#settings .row{display:flex;gap:10px;justify-content:flex-end}
+#settings button{background:var(--paper);color:var(--void);border:0;
+  font:11px var(--mono);letter-spacing:.24em;padding:11px 18px;cursor:pointer;
+  text-transform:uppercase;border-radius:2px}
+#settings button.ghost{background:none;color:var(--dim)}
+@media (prefers-reduced-motion:reduce){ canvas{cursor:pointer} }
+</style>
+</head>
+<body>
+<header>
+  <span><b>CULTUREBLOCS</b>&nbsp;·&nbsp;POCKET&nbsp;TOTEM</span>
+  <button id="cog" aria-label="settings">···</button>
+</header>
+<main>
+  <canvas id="m" width="640" height="640" aria-label="mint a bead"></canvas>
+  <div id="masks" role="radiogroup" aria-label="mask"></div>
+  <input id="note" placeholder="SAY SOMETHING · OPTIONAL" autocomplete="off" maxlength="280">
+</main>
+<footer><span class="q"></span><span id="status">READY</span></footer>
+
+<div id="settings">
+  <div style="letter-spacing:.28em;font-size:10px;color:var(--paper)">SETTINGS</div>
+  <div><label>String URL</label><input id="sUrl" placeholder="http://brick:8100"></div>
+  <div><label>Token (if the String requires one)</label><input id="sTok"></div>
+  <div><label>Masks — one per line: NAME | #hex</label>
+    <textarea id="sMasks" spellcheck="false"></textarea></div>
+  <div class="row">
+    <button class="ghost" id="sCancel">Back</button>
+    <button id="sSave">Save</button>
+  </div>
+  <div style="color:var(--dim);font-size:11px;letter-spacing:.04em;line-height:1.7">
+    Beads mint locally and queue on this phone until the String answers.
+    The telling — notes, photos, strands — happens at the desk, not here.
+  </div>
+</div>
+
+<script>
+/* ---------- state ---------- */
+const LS = k => JSON.parse(localStorage.getItem('pt:'+k) || 'null');
+const SV = (k,v) => localStorage.setItem('pt:'+k, JSON.stringify(v));
+let cfg = LS('cfg') || {url:'http://localhost:8100', tok:''};
+let masks = LS('masks') || [
+  {n:'OUT', c:'#EDEDED'}, {n:'ART', c:'#D71921'}, {n:'HOME', c:'#5A5A5A'}];
+let mi = LS('mi') || 0; if(mi >= masks.length) mi = 0;
+let queue = LS('q') || [];
+
+/* ---------- 5x7 dot font (A–Z) ---------- */
+const F={A:[0x7E,0x11,0x11,0x11,0x7E],B:[0x7F,0x49,0x49,0x49,0x36],C:[0x3E,0x41,0x41,0x41,0x22],
+D:[0x7F,0x41,0x41,0x22,0x1C],E:[0x7F,0x49,0x49,0x49,0x41],F:[0x7F,0x09,0x09,0x09,0x01],
+G:[0x3E,0x41,0x49,0x49,0x7A],H:[0x7F,0x08,0x08,0x08,0x7F],I:[0,0x41,0x7F,0x41,0],
+J:[0x20,0x40,0x41,0x3F,0x01],K:[0x7F,0x08,0x14,0x22,0x41],L:[0x7F,0x40,0x40,0x40,0x40],
+M:[0x7F,0x02,0x0C,0x02,0x7F],N:[0x7F,0x04,0x08,0x10,0x7F],O:[0x3E,0x41,0x41,0x41,0x3E],
+P:[0x7F,0x09,0x09,0x09,0x06],Q:[0x3E,0x41,0x51,0x21,0x5E],R:[0x7F,0x09,0x19,0x29,0x46],
+S:[0x46,0x49,0x49,0x49,0x31],T:[0x01,0x01,0x7F,0x01,0x01],U:[0x3F,0x40,0x40,0x40,0x3F],
+V:[0x1F,0x20,0x40,0x20,0x1F],W:[0x3F,0x40,0x38,0x40,0x3F],X:[0x63,0x14,0x08,0x14,0x63],
+Y:[0x07,0x08,0x70,0x08,0x07],Z:[0x61,0x51,0x49,0x45,0x43]};
+
+/* ---------- the matrix ---------- */
+const cv = document.getElementById('m'), cx = cv.getContext('2d');
+const N = 21, R = 320;                       // N x N dot grid inside a circle
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let dots = [], bloom = 0, flash = 0;
+function buildDots(){
+  dots = [];
+  const step = (R*2)/(N+1);
+  const li = masks[mi].n[0].toUpperCase();
+  const glyph = F[li] || [0,0,0x08,0,0];      // fallback: a single dot
+  const g0c = Math.floor(N/2)-2, g0r = Math.floor(N/2)-3;
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const x=-R+step*(c+1), y=-R+step*(r+1);
+    if(Math.hypot(x,y) > R-8) continue;
+    const gc=c-g0c, gr=r-g0r;
+    const lit = gc>=0&&gc<5&&gr>=0&&gr<7 && (glyph[gc]>>gr&1);
+    dots.push({x,y,lit,ph:Math.random()*6.28,d:Math.hypot(x,y)/R});
+  }
+}
+function draw(t){
+  cx.clearRect(0,0,640,640); cx.save(); cx.translate(320,320);
+  const mc = masks[mi].c;
+  for(const d of dots){
+    let x=d.x, y=d.y, a, col=mc, rad=4.4;
+    if(bloom>0){
+      const k = bloom*bloom*1.9;
+      x*= 1+k*(0.4+d.d); y*= 1+k*(0.4+d.d);
+      a = Math.max(0, 1-bloom*1.15);
+      if(d.lit){ col='#EDEDED'; a=Math.max(a,1-bloom); }
+    }else{
+      const breathe = reduced ? .55 : .38+.3*Math.sin(t/900+d.ph);
+      a = d.lit ? .95 : breathe*.5;
+      col = d.lit ? '#EDEDED' : mc;
+      if(d.lit && !reduced) a = .8+.2*Math.sin(t/450);
+    }
+    cx.globalAlpha = a;
+    cx.fillStyle = col;
+    cx.beginPath(); cx.arc(x,y,rad,0,6.29); cx.fill();
+  }
+  if(flash>0){
+    cx.globalAlpha = flash*.9; cx.fillStyle = '#D71921';
+    cx.beginPath(); cx.arc(0,0,10+40*(1-flash),0,6.29); cx.fill();
+    flash -= 0.05;
+  }
+  if(bloom>0){ bloom += 0.045; if(bloom>1.05){ bloom=0; buildDots(); } }
+  cx.restore();
+  requestAnimationFrame(draw);
+}
+buildDots(); requestAnimationFrame(draw);
+
+/* ---------- masks UI ---------- */
+const mEl = document.getElementById('masks');
+function renderMasks(){
+  mEl.innerHTML = masks.map((m,i)=>
+    `<button role="radio" aria-checked="${i===mi}" data-i="${i}"
+       class="${i===mi?'on':''}" style="${i===mi?`background:${m.c};color:#000`:`color:${m.c};border-color:${m.c}55`}">
+       <span class="d"></span>${m.n}</button>`).join('');
+}
+mEl.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  mi=+b.dataset.i; SV('mi',mi); renderMasks(); buildDots();
+});
+renderMasks();
+
+/* ---------- minting ---------- */
+const status = document.getElementById('status');
+const noteEl = document.getElementById('note');
+function setStatus(){
+  const f = document.querySelector('footer');
+  f.classList.toggle('queued', queue.length>0);
+  if(queue.length) status.textContent = `${queue.length} QUEUED`;
+}
+function uuid(){ return crypto.randomUUID ? crypto.randomUUID()
+  : 'xxxx-xxxx-4xxx'.replace(/x/g,()=> (Math.random()*16|0).toString(16)); }
+function mint(){
+  const now = new Date().toISOString();
+  const note = noteEl.value.trim();
+  const body = {"$type":"com.cultureblocs.bead", createdAt: now, kind:"bloc",
+    tags:[masks[mi].n.toLowerCase()],
+    provenance:{app:"pocket", mintedAt: now, timeAnchored:true}};
+  if(note) body.note = note;
+  queue.push({dedupeKey:"pocket:"+uuid(), type:"com.cultureblocs.bead",
+    sourceApp:"pocket-totem", createdAt: now, body});
+  SV('q', queue); noteEl.value='';
+  if(reduced){ flash=1 } else { bloom = 0.01; flash = 1; }
+  if(navigator.vibrate) navigator.vibrate(30);
+  status.textContent = 'MINTED ' + now.slice(11,16);
+  setStatus(); flush();
+}
+cv.addEventListener('click', mint);
+cv.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') mint(); });
+cv.tabIndex = 0;
+
+/* ---------- queue flush ---------- */
+let flushing = false;
+async function flush(){
+  if(flushing || !queue.length) { setStatus(); return; }
+  flushing = true;
+  try{
+    const res = await fetch(cfg.url.replace(/\/$/,'')+'/records',{
+      method:'POST',
+      headers:{'content-type':'application/json',
+        ...(cfg.tok?{'authorization':'Bearer '+cfg.tok}:{})},
+      body: JSON.stringify({records: queue})});
+    if(!res.ok) throw new Error(res.status);
+    queue = []; SV('q', queue);
+    status.textContent = 'TOLD ' + new Date().toISOString().slice(11,16);
+  }catch(e){
+    status.textContent = navigator.onLine
+      ? `${queue.length} QUEUED · STRING UNREACHABLE`
+      : `${queue.length} QUEUED · OFFLINE`;
+  }
+  flushing = false; setStatus();
+}
+addEventListener('online', flush);
+setInterval(flush, 60000);
+flush();
+
+/* ---------- settings ---------- */
+const S = document.getElementById('settings');
+document.getElementById('cog').onclick = ()=>{
+  document.getElementById('sUrl').value = cfg.url;
+  document.getElementById('sTok').value = cfg.tok;
+  document.getElementById('sMasks').value =
+    masks.map(m=>`${m.n} | ${m.c}`).join('\n');
+  S.classList.add('open');
+};
+document.getElementById('sCancel').onclick = ()=> S.classList.remove('open');
+document.getElementById('sSave').onclick = ()=>{
+  cfg = {url: document.getElementById('sUrl').value.trim() || cfg.url,
+         tok: document.getElementById('sTok').value.trim()};
+  const parsed = document.getElementById('sMasks').value.split('\n')
+    .map(l=>l.split('|')).filter(p=>p[0]&&p[0].trim())
+    .map(p=>({n:p[0].trim().toUpperCase().slice(0,8),
+              c:(p[1]||'#EDEDED').trim()})).slice(0,8);
+  if(parsed.length) masks = parsed;
+  if(mi>=masks.length) mi=0;
+  SV('cfg',cfg); SV('masks',masks); SV('mi',mi);
+  renderMasks(); buildDots(); S.classList.remove('open'); flush();
+};
+
+/* ---------- PWA ---------- */
+if('serviceWorker' in navigator && location.protocol==='https:')
+  navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>

@@ -12,6 +12,13 @@ services:
       # STRING_TOKEN: change-me        # uncomment to require auth
     restart: unless-stopped
 
+  pocket:
+    image: nginx:alpine
+    ports: ["8103:80"]
+    volumes:
+      - ./pocket:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
   timeline:
     image: nginx:alpine
     ports: ["8101:80"]

@@ -114,8 +114,25 @@
     <input id="spine" size="20" aria-label="Spine URL" placeholder="http://localhost:8100">
     <input id="token" size="9" type="password" aria-label="Token" placeholder="token">
     <button id="reload">Load</button>
+    <button id="idsBtn" title="publishing identities">identities</button>
   </div>
 </header>
+<div id="idsPanel" hidden style="max-width:46rem;margin:1rem auto 0;padding:0 1.2rem">
+  <div class="editor" style="max-width:none">
+    <div style="font:600 11px var(--disp);letter-spacing:.16em;text-transform:uppercase">Publishing identities</div>
+    <div id="idsList" style="font:.85rem var(--mono)"></div>
+    <div class="grid2">
+      <div><label>name (e.g. personal, org)</label><input id="idName"></div>
+      <div><label>handle</label><input id="idHandle" placeholder="you.bsky.social"></div>
+    </div>
+    <div class="grid2">
+      <div><label>app password (never your account password)</label><input id="idPw" type="password" placeholder="xxxx-xxxx-xxxx-xxxx"></div>
+      <div><label>pds (optional)</label><input id="idPds" placeholder="https://bsky.social"></div>
+    </div>
+    <div class="row"><button class="primary" id="idAdd">Add identity</button>
+      <span class="savemsg" id="idMsg"></span></div>
+  </div>
+</div>
 <main>
   <div class="toolbar">
     <button id="selmode">Select beads</button>
@@ -172,17 +189,15 @@ function stopTools(machine){
   <input type="file" accept="image/*" class="photo-in" hidden>`;
 }
 function editor(b){
-  const l=(b.links||[])[0]||{};
+  const linkLines=(b.links||[]).map(l=>l.uri+(l.title?' | '+l.title:'')).join('\n');
   const KINDS=['bloc','visit','dwell','encounter','read','listen','watch','screening','performance','note'];
   const kindOpts=KINDS.map(k=>`<option value="${k}" ${k===(b.kind||'bloc')?'selected':''}>${k}</option>`).join('');
   return `<div class="editor" hidden>
     <div><label>kind</label><select class="e-kind">${kindOpts}</select></div>
     <div><label>tags (comma separated)</label><input class="e-tags" value="${esc((b.tags||[]).join(', '))}"></div>
     <div><label>place / occasion</label><input class="e-place" value="${esc(b.subject&&b.subject.name||'')}" placeholder="Tate Modern"></div>
-    <div class="grid2">
-      <div><label>link url</label><input class="e-luri" value="${esc(l.uri||'')}" placeholder="https://…"></div>
-      <div><label>link label</label><input class="e-ltitle" value="${esc(l.title||'')}" placeholder="show page"></div>
-    </div>
+    <div><label>links — one per line: url | label (Instagram post, show page, Flickr set…)</label>
+      <textarea class="e-links" rows="2" placeholder="https://instagram.com/p/… | on Instagram">${esc(linkLines)}</textarea></div>
     <div class="row"><button class="primary e-save">Save</button><span class="savemsg"></span></div>
   </div>`;
 }
@@ -230,10 +245,8 @@ function renderStrand(st, members){
     </div>
     <div class="editor strand-editor" hidden>
       <div><label>place</label><input class="s-place" value="${esc(b.place&&b.place.name||'')}" placeholder="Tate Modern"></div>
-      <div class="grid2">
-        <div><label>link url</label><input class="s-luri" value="${esc((b.links||[])[0]?.uri||'')}" placeholder="https://…"></div>
-        <div><label>link label</label><input class="s-ltitle" value="${esc((b.links||[])[0]?.title||'')}" placeholder="exhibition page"></div>
-      </div>
+      <div><label>links — one per line: url | label</label>
+        <textarea class="s-links" rows="2" placeholder="https://luma.com/… | event page">${esc((b.links||[]).map(l=>l.uri+(l.title?' | '+l.title:'')).join('\n'))}</textarea></div>
       <div class="row"><button class="primary s-save">Save</button><span class="savemsg"></span></div>
     </div>
     ${members.map(m=>m.type==='com.cultureblocs.annotation'?renderAnnotation(m):renderBead(m)).join('')}
@@ -296,21 +309,17 @@ document.addEventListener('click', async e=>{
       const id=stopEl.dataset.id, cur=S.byId[id].body;
       const tags=stopEl.querySelector('.e-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
       const place=stopEl.querySelector('.e-place').value.trim();
-      const luri=stopEl.querySelector('.e-luri').value.trim();
-      const ltitle=stopEl.querySelector('.e-ltitle').value.trim();
       const fields={ note: stopEl.querySelector('.note').textContent, tags };
       const kindSel=stopEl.querySelector('.e-kind'); if(kindSel) fields.kind=kindSel.value;
       if(place) fields.subject={...(cur.subject||{}),name:place};
-      fields.links=luri?[{uri:luri,...(ltitle?{title:ltitle}:{})}]:[];
+      fields.links=parseLinks(stopEl.querySelector('.e-links').value);
       await patch(id,fields); render(); return}
     if(e.target.classList.contains('s-save')){
       const id=strandEl.dataset.sid;
       const place=strandEl.querySelector('.s-place').value.trim();
-      const luri=strandEl.querySelector('.s-luri').value.trim();
-      const ltitle=strandEl.querySelector('.s-ltitle').value.trim();
       const fields={ title: strandEl.querySelector('.stitle').textContent.trim() };
       if(place) fields.place={name:place};
-      fields.links=luri?[{uri:luri,...(ltitle?{title:ltitle}:{})}]:[];
+      fields.links=parseLinks(strandEl.querySelector('.s-links').value);
       await patch(id,fields); render(); return}
     if(e.target.classList.contains('release-btn')){
       const id=stopEl.dataset.id;
@@ -411,6 +420,44 @@ $('#mkstrand').onclick=async ()=>{
   }catch(err){ alert('strand failed: '+err.message) }
 };
 
+function parseLinks(text){
+  return text.split('\n').map(s=>s.trim()).filter(Boolean).slice(0,8).map(line=>{
+    const parts=line.split('|');
+    const uri=parts.shift().trim();
+    const title=parts.join('|').trim();
+    return uri?{uri, ...(title?{title}:{})}:null;
+  }).filter(Boolean);
+}
+async function renderIds(){
+  try{
+    const {identities}=await api('/identities');
+    $('#idsList').innerHTML = identities.length
+      ? identities.map(i=>`${esc(i.name)} — ${esc(i.handle)} <button class="id-del" data-n="${esc(i.name)}" style="font-size:11px">remove</button>`).join('<br>')
+      : 'none held yet — add one below';
+  }catch(e){ $('#idsList').textContent='String error: '+e.message }
+}
+$('#idsBtn').addEventListener('click',()=>{
+  const pnl=$('#idsPanel'); pnl.hidden=!pnl.hidden;
+  if(!pnl.hidden) renderIds();
+});
+$('#idAdd').addEventListener('click',async()=>{
+  const name=$('#idName').value.trim(), handle=$('#idHandle').value.trim(),
+        pw=$('#idPw').value.trim(), pds=$('#idPds').value.trim();
+  if(!name||!handle||!pw){$('#idMsg').textContent='name, handle and app password required';return}
+  try{
+    await api('/identities/'+encodeURIComponent(name),{method:'PUT',
+      body:JSON.stringify({handle, appPassword:pw, ...(pds?{pds}:{})})});
+    $('#idName').value=$('#idHandle').value=$('#idPw').value=$('#idPds').value='';
+    $('#idMsg').textContent='added'; renderIds();
+  }catch(e){$('#idMsg').textContent='failed: '+e.message}
+});
+document.addEventListener('click',async e=>{
+  if(e.target.classList.contains('id-del')){
+    if(!confirm(`Remove identity "${e.target.dataset.n}"?`))return;
+    try{await api('/identities/'+encodeURIComponent(e.target.dataset.n),{method:'DELETE'})}catch(err){}
+    renderIds();
+  }
+});
 $('#reload').addEventListener('click',async()=>{
   localStorage.spineUrl=$('#spine').value;
   localStorage.spineToken=$('#token').value;

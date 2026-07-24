@@ -4,21 +4,39 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A bookmark/note about a specific work, typically minted by the AR gallery app at the moment of recognition. Meaningful entirely on its own — no bead required.",
+      "description": "A bookmark/note about a specific work, typically minted by the AR gallery app at the moment of recognition. Meaningful entirely on its own \u2014 no bead required.",
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["createdAt", "work"],
+        "required": [
+          "createdAt",
+          "work"
+        ],
         "properties": {
-          "createdAt": { "type": "string", "format": "datetime" },
-          "work": { "type": "ref", "ref": "com.cultureblocs.defs#workRef" },
-          "note": { "type": "string", "maxGraphemes": 3000 },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "work": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#workRef"
+          },
+          "note": {
+            "type": "string",
+            "maxGraphemes": 3000
+          },
           "media": {
             "type": "array",
             "maxLength": 10,
-            "items": { "type": "ref", "ref": "com.cultureblocs.defs#mediaRef" }
+            "items": {
+              "type": "ref",
+              "ref": "com.cultureblocs.defs#mediaRef"
+            }
           },
-          "geo": { "type": "ref", "ref": "com.cultureblocs.defs#geo" },
+          "geo": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#geo"
+          },
           "context": {
             "type": "ref",
             "ref": "com.cultureblocs.defs#strongRef",
@@ -26,10 +44,29 @@
           },
           "matchConfidence": {
             "type": "string",
-            "knownValues": ["embedding", "geometric", "manual"],
+            "knownValues": [
+              "embedding",
+              "geometric",
+              "manual"
+            ],
             "description": "How the work was identified: cosine embedding match, ORB geometric verification, or manual entry."
           },
-          "provenance": { "type": "ref", "ref": "com.cultureblocs.defs#provenance" }
+          "provenance": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#provenance"
+          },
+          "photos": {
+            "type": "array",
+            "maxLength": 10,
+            "items": {
+              "type": "blob",
+              "accept": [
+                "image/*"
+              ],
+              "maxSize": 2000000
+            },
+            "description": "Published photos as ATProto blobs. Tier 0 records use `media` (local refs); the promoter uploads and swaps at publish time."
+          }
         }
       }
     }

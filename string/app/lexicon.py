@@ -164,6 +164,14 @@ class LexiconRegistry:
                 return False
             return True
 
+        if t == "blob":
+            # blob fields are populated by the PDS at publish time; locally we
+            # accept the standard blob object shape without deep checks.
+            if not isinstance(value, dict):
+                problems.append(f"{path}: expected blob object")
+                return False
+            return True
+
         if t == "unknown":
             return True
 

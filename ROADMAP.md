@@ -38,17 +38,18 @@ Three scope separations, deliberately held:
 
 ## 1 · The String (core, near-term)
 
-- [ ] **Media blobs in the promoter** — evolve the bead lexicon so
-  `media` can carry ATProto blob refs; upload photos at publish time.
-  Until then the static export is the photo-capable path. *The known
-  gap; high visible payoff.*
+- [x] **Media blobs in the promoter** — beads' local photos upload as
+  ATProto blobs (`photos` field) at publish time; the embed component
+  renders them live via `getBlob`. Context links to Instagram/FB/
+  Flickr etc. ride the existing `links[]` field — the timeline editor
+  now takes many links, one per line.
 - [ ] **Enrichment worker** — consume `GET /changes`, cluster each
   day's beads by time/place gaps into *draft* strands to accept or
   discard. Hand-made strands are the calibration set. *Independent.*
 - [ ] **One-click publish for a lone bead** — auto-titled single-bead
   strand from the timeline. *Small.*
-- [ ] **Identities UI** — manage held accounts from the timeline
-  instead of curl. *Small.*
+- [x] **Identities UI** — held accounts managed from the timeline
+  (identities button in the header).
 - [ ] **Encounter confirmation** — matching mintIds across two
   people's Strings become confirmed edges, mapped to real DIDs at
   confirmation time. The social layer. *Gated on totem mintId (§2).*
@@ -57,9 +58,11 @@ Three scope separations, deliberately held:
   (2003–2011 history via `scrobbler.py --from-json`).
 - [ ] **Timeline growth** — tag/source filters, multi-day and month
   views. Driven by daily-use friction.
-- [ ] **Always-on host** — String + workers + sonos-lastfm to a home
-  server; retires the sleeping-laptop failure class. Also the
-  precondition for capture surfaces that post from anywhere (§2).
+- [ ] **Always-on host** — spec written: [HOST-SPEC.md](HOST-SPEC.md)
+  (Raspberry Pi as a DataBrick — a physical object in place holding
+  the household's cultural memory). Build when parts arrive; retires
+  the sleeping-laptop failure class and unlocks §2 posting from
+  anywhere.
 
 ## 2 · Capture surfaces (the totem is one of a family)
 
@@ -77,12 +80,11 @@ pattern; none of them is a feed.
   *Deadline: 19 Aug.*
 
 ### The pocket totem (phone app) — *highest of the new surfaces*
-- [ ] **PWA first**: one screen — mask picker, one large animated
-  mint button — posting to the String over the network (Tailscale or
-  token), offline queue underneath. A shareable URL, installable to
-  the home screen, both platforms, no app store: the easiest way to
-  hand someone the bead-then-tell ritual (end-of-day diary writing)
-  and see if it takes.
+- [x] **PWA built** (`pocket/`, served on :8103): one screen — mask
+  strip, the mint button as a live LED dot-matrix (mask initial in
+  dots, bloom on press), optional one-line note, offline queue in
+  localStorage flushing to the String. Installable; serve over HTTPS
+  (e.g. `tailscale serve`) for full PWA install + offline shell.
 - [ ] **Design language**: the glyph/dot-matrix direction (à la
   Nothing) — peripheral, glanceable, low-attention signalling, which
   is the totem's soul on glass. Monochrome matrix bloom on mint,

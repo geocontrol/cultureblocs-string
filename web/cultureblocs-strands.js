@@ -39,6 +39,7 @@ export async function fetchActorStrands(actor, {pds=null, limit=0, fetchFn=fetch
   }
   const list = await j(`${pds}/xrpc/com.atproto.repo.listRecords?repo=${did}` +
     `&collection=com.cultureblocs.strand&limit=50`);
+  const blobBase = `${pds}/xrpc/com.atproto.sync.getBlob?did=${did}&cid=`;
   let strands = (list.records||[]).sort((a,b)=>
     (b.value.createdAt||'') < (a.value.createdAt||'') ? -1 : 1);
   if(limit>0) strands = strands.slice(0, limit);
@@ -53,7 +54,7 @@ export async function fetchActorStrands(actor, {pds=null, limit=0, fetchFn=fetch
       }catch(e){ return null; }
     }))).filter(Boolean)
        .sort((a,b)=>(a.createdAt||'') < (b.createdAt||'') ? -1 : 1);
-    bundles.push({strand: s.value, items});
+    bundles.push({strand: s.value, items, blobBase});
   }
   return bundles;
 }
@@ -110,6 +111,7 @@ class CultureblocsStrands extends HTMLElement {
         return `<p>${esc(bk)}</p>`;
       }).join('');
     };
+    let blobBase = '';
     const item = it => {
       const isWork = it.$type==='com.cultureblocs.annotation' || it.work;
       const dot = isWork
@@ -120,7 +122,12 @@ class CultureblocsStrands extends HTMLElement {
           (it.work?.creator?`<span class="artist"> — ${esc(it.work.creator)}</span>`:'')
         : (it.subject?.name?`<span class="work">${esc(it.subject.name)}</span>`:'');
       const media = (it.media||[]).map(m=>
-        `<img loading="lazy" src="${esc(base+m.uri)}" alt="${esc(m.alt||'')}">`).join('');
+        `<img loading="lazy" src="${esc(base+m.uri)}" alt="${esc(m.alt||'')}">`).join('')
+        + (it.photos||[]).map(ph=>{
+            const cid = ph.ref && (ph.ref.$link || ph.ref["$link"]);
+            return (blobBase && cid)
+              ? `<img loading="lazy" src="${esc(blobBase+cid)}" alt="">` : '';
+          }).join('');
       const links = (it.links||[]).map(l=>
         `<a href="${esc(l.uri)}" target="_blank" rel="noopener">${esc(l.title||'link')}</a>`).join(' ');
       return `<li>
@@ -175,7 +182,7 @@ class CultureblocsStrands extends HTMLElement {
       .links{margin-top:.25rem;font-size:.8em}
       .links a{color:var(--cb-accent,#2B4BC7)}
     </style>
-    ${strands.map(strand).join('') || ''}`;
+    ${strands.map(b=>{blobBase=b.blobBase||'';return strand(b)}).join('') || ''}`;
   }
 }
 customElements.define('cultureblocs-strands', CultureblocsStrands);

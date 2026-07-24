@@ -46,9 +46,10 @@ the act of consent.
 
 ## Known limitations (release one)
 
-- **No media blobs yet.** Correctly referencing blobs needs a small lexicon
-  evolution (media as blob fields) — until then photos live on your static
-  site exports only.
+- **Media now publishes**: at publish time, each bead's local photos are
+  uploaded as ATProto blobs into a `photos` field (images ≤2 MB; larger
+  files are skipped). Unpublish deletes the records and the PDS
+  garbage-collects the blobs.
 - **Public visibility is real**: records go through the firehose and are
   fetchable by anyone immediately. Unpublish deletes them, but caches and
   indexes may retain copies — publish like you mean it.

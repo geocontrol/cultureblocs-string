@@ -16,6 +16,15 @@ STRAND = "com.cultureblocs.strand"
 BEAD_TYPES = ("com.cultureblocs.bead", "com.cultureblocs.annotation")
 
 
+def _upload_blob(pds: str, token: str, data: bytes, mime: str) -> dict:
+    req = urllib.request.Request(
+        f"{pds.rstrip('/')}/xrpc/com.atproto.repo.uploadBlob",
+        data=data, method="POST",
+        headers={"Content-Type": mime, "Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read())["blob"]
+
+
 def _xrpc(pds: str, method: str, *, body: dict | None = None,
           token: str | None = None) -> dict:
     url = f"{pds.rstrip('/')}/xrpc/{method}"
@@ -30,7 +39,9 @@ def _xrpc(pds: str, method: str, *, body: dict | None = None,
         return json.loads(raw) if raw else {}
 
 
-def strip_bead(body: dict) -> dict:
+def strip_bead(body: dict, *, blobs: list | None = None) -> dict:
+    """Public subset. Local `media` refs never publish; if the caller has
+    uploaded them as blobs, they arrive as `photos`."""
     out = {"$type": body["$type"]}
     for k in ("createdAt", "kind", "note", "tags", "links", "work"):
         if k in body:
@@ -38,6 +49,8 @@ def strip_bead(body: dict) -> dict:
     subj = body.get("subject")
     if isinstance(subj, dict) and subj.get("name"):
         out["subject"] = {"name": subj["name"]}
+    if blobs:
+        out["photos"] = blobs
     return out
 
 
@@ -65,7 +78,33 @@ def _login(identity: dict) -> tuple[str, str, str]:
     return s["did"], s["accessJwt"], identity["pds"]
 
 
-def publish_strand(store, strand_id: str, identity: dict) -> dict:
+MIME_BY_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+               ".webp": "image/webp", ".gif": "image/gif", ".heic": "image/heic"}
+
+
+def _media_blobs(rec_body: dict, media_dir, pds: str, jwt: str) -> list:
+    """Upload a record's local media files as blobs; skip anything missing
+    or oversized rather than failing the publish."""
+    import pathlib
+    blobs = []
+    if media_dir is None:
+        return blobs
+    for m in (rec_body.get("media") or []):
+        name = (m.get("uri") or "").split("/")[-1]
+        path = pathlib.Path(media_dir) / name
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        if len(data) > 2_000_000:      # lexicon maxSize; resize upstream someday
+            continue
+        mime = m.get("mime") or MIME_BY_EXT.get(path.suffix.lower(),
+                                                "application/octet-stream")
+        blobs.append(_upload_blob(pds, jwt, data, mime))
+    return blobs
+
+
+def publish_strand(store, strand_id: str, identity: dict,
+                   media_dir=None) -> dict:
     strand = store.get(strand_id)
     if strand is None or strand["type"] != STRAND:
         raise ValueError("not a strand")
@@ -77,7 +116,8 @@ def publish_strand(store, strand_id: str, identity: dict) -> dict:
         rec = store.get(rid)
         if rec is None or rec["type"] not in BEAD_TYPES:
             continue
-        stripped = strip_bead(rec["body"])
+        blobs = _media_blobs(rec["body"], media_dir, pds, jwt)
+        stripped = strip_bead(rec["body"], blobs=blobs)
         res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
             "repo": did, "collection": rec["type"], "rkey": rid,
             "record": stripped})
