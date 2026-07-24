@@ -1,182 +1,152 @@
 # cultureblocs string
 
-*Beads on a thread — in the lineage of the quipu, the Andean
-knot-records. Formerly "the Spine"; the service renamed but the
-API, data, and `spine://` record URIs are unchanged, and old
-`SPINE_*` env vars still work.*
+*Beads on a thread — in the lineage of the quipu, the Andean knot-records.
+Formerly "the Spine": the service was renamed, but the API, the data, and
+the `spine://` record URIs inside existing strands are unchanged, and old
+`SPINE_*` environment variables still work.*
 
-Tier 0 record bucket for the cultureblocs cultural graph. Every app
-(CultureBloc bridge, AR gallery, manual entry) is an independent producer
-writing lexicon-valid records into one place. Apps never talk to each
-other — they share only the schemas in `lexicons/`.
+The String is a small, self-hosted record store for your cultural life.
+Moments are minted as **beads** (a gallery visit, a film, a book, a
+listening session, an encounter), told into **strands** (the story of a
+day or an evening), and kept locally — validated against the open
+[`com.cultureblocs.*` lexicons](https://www.cultureblocs.com/lexicons.html),
+which resolve through cultureblocs.com as a formal ATProto schema
+authority.
 
-The wire format is already the federation format: bodies are valid
-`com.cultureblocs.*` records from day one, so later promotion to an
-ATProto PDS is a copy, not a migration.
+Three principles, enforced by architecture rather than policy:
+
+- **Local-first** — everything works offline; the String runs on your
+  machine and is the source of truth.
+- **Own your data** — one SQLite file, open schemas, every export yours.
+- **Privacy by default** — records start private. Publishing is a
+  deliberate act per strand, with locations, device identifiers and
+  provenance stripped on the way out. The wire format is already the
+  federation format, so publication is a copy, not a migration.
 
 ## Layout
 
-    lexicons/org/cultureblocs/   defs, bead, annotation, strand (schema commons)
-    spine/                      FastAPI + SQLite(WAL) record service
-    sdk/python/                 offline capture queue (port to Swift for the AR app)
-    bridge/                     CultureBloc mint-log -> bead hydrator (script path)
-    studio/                     CultureBloc Studio — pull totem over Web Serial,
-                                annotate, push beads to the String (primary device path)
-    timeline/                   single-file day view ("the day's string")
-    scripts/seed_demo.py        example day (Tate / Hockney / Curzon)
+    lexicons/com/cultureblocs/  the schema commons: defs, bead, annotation, strand
+    string/                     the String service (FastAPI + SQLite WAL)
+    studio/                     CultureBloc Studio — pull the totem over Web
+                                Serial, resolve times, tell, push to the String
+    timeline/                   "the day's string" — annotate, photos, links,
+                                group into strands, publish
+    web/                        <cultureblocs-strands> embed component
+                                (CANONICAL COPY — always copy outward from here)
+    scripts/                    mint, promote, export, lexicon publication, seed
+    workers/                    scrobbler (Last.fm -> listen beads)
+    sdk/python/                 offline capture queue (Swift port pending for AR)
+    bridge/                     scripted totem-dump -> bead path
+    skill/                      agent skill: drive the String from Claude Code
 
-## Run
+## Quick start
 
     docker compose up -d --build
-    python scripts/seed_demo.py            # seed the example day
-    open http://localhost:8101             # timeline (String at :8100)
-    open http://localhost:8102             # CultureBloc Studio
+    python scripts/seed_demo.py          # optional example day
 
-Or without Docker:
+| Port  | Surface |
+|-------|---------|
+| :8100 | String API |
+| :8101 | Timeline ("the day's string") |
+| :8102 | CultureBloc Studio |
 
-    pip install -r string/requirements.txt
-    STRING_DB=./data/string.db STRING_LEXICONS=./lexicons \
-      uvicorn app.main:app --app-dir string --port 8100
+Open the timeline, load a day, and you have the whole loop minus a totem.
 
-Auth: set `STRING_TOKEN` in the compose file to require
-`Authorization: Bearer <token>` on every call. At-venue access without
-exposing anything publicly: put the host on Tailscale. Backup: copy
-`data/string.db` plus any `*.jsonl` capture queues.
+## Minting — where beads begin
 
-## CultureBloc Studio (the totem's desk)
+- **Totem** (M5Stack StickS3): mint by button press, mutual press for
+  encounters; pull over USB in the **Studio** (:8102), which resolves the
+  device's elapsed-time counters to real instants, manages the mask
+  wardrobe, and pushes kept beads in.
+- **By hand**: `python scripts/mint.py --note "..." --kind read`
+  — for moments no device witnessed. See `--help` for kinds, tags,
+  place, links, and backdating.
+- **Scrobbler**: `workers/scrobbler.py` polls Last.fm, clusters plays
+  into listening sessions, and proposes one `listen` bead per closed
+  session. Machine-minted beads sit on a dotted rail in the timeline
+  with a release button — proposals, not facts, until you keep them.
+  Run hourly (cron / LaunchAgent); idempotent by construction.
 
-The primary path from the StickS3 totem into the String. Pull beads over
-Web Serial (Chrome/Edge; `http://localhost:8102` is a secure context —
-a LAN IP is not, so use Tailscale HTTPS or open the file directly from
-another machine), name the occasion, retag masks, annotate, keep/release,
-then **Push to String** — kept beads become `com.cultureblocs.bead` records.
+## Telling — the timeline
 
-Timestamp handling, best truth first: current-epoch elapsed beads resolve
-to exact UTC instants via the `---NOW <n> EPOCH <k>---` anchor (correct
-across midnight); old-epoch beads (minted before a power loss) keep their
-order but are flagged `timeAnchored: false`; legacy `t`-beads and
-no-time beads use the date picker, also flagged. Dedupe: `cb:{mintId}`
-when the firmware provides one (128-bit, shared across both parties on a
-mutual mint — the encounter join key, carried in `provenance.mintId`),
-falling back to a composite key for older firmware. Mixed firmware
-generations in one dump all work.
+Annotate notes (⌘/Ctrl-Enter to save), attach photos, set kind/tags/
+place/links, select beads and **group into strands** — the publishable
+story unit, with its own title, place and event link.
 
-## Interfaces
+## Publishing — strands to the Atmosphere
 
-| Surface | Contract |
+The String holds **identities** (ATProto accounts) and publishes
+server-side; the timeline gets publish / republish / unpublish buttons
+per strand, with a confirm showing which identity will speak:
+
+    curl -X PUT http://localhost:8100/identities/personal \
+      -H 'content-type: application/json' \
+      -d '{"handle":"you.bsky.social","appPassword":"xxxx-xxxx-xxxx-xxxx"}'
+
+Use **app passwords**, never account passwords. Multiple identities are
+the point: personal strands publish as you, organisational strands as
+the org — same desk, different letterhead. CLI equivalent:
+
+    python scripts/promote.py publish <strand-id> --identity personal
+    python scripts/promote.py status          # drift since publish
+
+What publishes: place names, notes, tags, links, works, kinds, times.
+What never leaves: geo coordinates, provenance, device ids, mintIds,
+and (release one) media. Full details in [PROMOTER.md](PROMOTER.md).
+
+Published strands render anywhere via the embed component — live from
+a repo (`<cultureblocs-strands actor="handle">`) or from a baked export
+(`scripts/export_public.py`, see below).
+
+## Static export (photo-capable)
+
+    python scripts/export_public.py export <strand-id> --out <site>/cultureblocs
+
+Same privacy strip, plus media copied content-addressed — currently the
+only path that publishes photos, until media blobs land in the promoter.
+
+## API surface (selected)
+
+| Endpoint | Purpose |
 |---|---|
-| `POST /records` | batch ingest; **idempotent on `dedupeKey`** (mintId / app UUID); each body validated against its `$type` lexicon; per-item result `created`/`duplicate`/`invalid` |
-| `GET /records?day=&type=&sourceApp=` | day/type queries for UIs |
-| `PATCH /records/{id}` | shallow-merge annotation edits (LWW), revision bump, re-validated |
-| `GET /changes?since=N` | append-only change feed with cursor — the hook for the enrichment worker, CRDT upgrade, and the PDS promoter |
-| `GET /days`, `/lexicons`, `/health` | navigation & introspection |
+| `POST /records` | batch ingest, idempotent on `dedupeKey`, lexicon-validated |
+| `GET /records?day=&type=&sourceApp=` · `GET /days` | query |
+| `PATCH /records/{id}` | edit the envelope (note, tags, links…), re-validated |
+| `GET /changes?since=` | append-only feed with cursor (workers hook here) |
+| `POST /media` · `GET /media/{name}` | content-addressed photo store |
+| `PUT/GET/DELETE /identities…` | held publishing identities (passwords never returned) |
+| `POST /publish/{strand}` · `POST /unpublish/{strand}` | server-side Stage F |
 
-## CultureBloc bridge (scripted alternative)
+Auth: set `STRING_TOKEN` to require a bearer token on every call.
 
-A headless path for the same job — useful for batch imports or automation
-when the browser isn't in the loop:
+## Configuration
 
-    python bridge/culturebloc_bridge.py mints.jsonl \
-      --ticks-now 401500 --utc-now 2026-07-08T18:30:00Z \
-      --device bloc-3a --place "Tate Britain" \
-      --lat 51.4911 --lng -0.1278 --precision 100m
+`STRING_DB`, `STRING_LEXICONS`, `STRING_MEDIA`, `STRING_TOKEN` (the old
+`SPINE_*` names still work). Scripts honour `STRING_URL`/`STRING_TOKEN`
+and accept `--string`/`--spine` interchangeably.
 
-Time anchoring back-computes UTC from the device's monotonic ticks (no
-RTC needed). `parse_mint_events()` is the marked adaptation point for the
-real C4 sync export. Offline-safe: unreachable String leaves records in
-the local queue; re-run to flush.
+## Data, backups, privacy
 
-## AR gallery app
+Everything lives in `data/` (gitignored): the SQLite database — which
+now also holds identity **app passwords** — plus the media store. Back
+up with `sqlite3 data/string.db ".backup backup.db"` and a copy of
+`data/media/`. Treat `data/` as credential-bearing.
 
-Port `sdk/python/cultureblocs_capture.py` to Swift (~200 lines: append
-JSONL, flush batch, keep failures). On bookmark, capture an
-`com.cultureblocs.annotation` with a `workRef` (Wikidata QID / accession
-if resolved, descriptive fallback otherwise) and `matchConfidence`
-(`embedding` | `geometric` | `manual`). The app stays fully standalone.
+## Further docs
 
-## Deliberately not here yet
+- [PUBLISHING.md](PUBLISHING.md) — lexicon publication: making
+  cultureblocs.com a resolvable schema authority (done; kept as the
+  update mechanism).
+- [PROMOTER.md](PROMOTER.md) — publishing strands as signed records.
+- [MEETUP-RUNBOOK.md](MEETUP-RUNBOOK.md) — an event, end to end:
+  announce, mint on the night, tell, publish.
+- [skill/cultureblocs-string/SKILL.md](skill/cultureblocs-string/SKILL.md)
+  — install into Claude Code to mint/edit/publish conversationally.
 
-Strand enrichment worker, encounter confirmation, the PDS + promoter
-(Stage F: snapshot -> privacy-strip -> putRecord -> strongRef back), and
-the CRDT upgrade. All of them consume `GET /changes` — the seam is in
-place.
+## Related
 
-## Publishing strands to a static site (geekyoto-style)
-
-Tier-2 promotion with a static site as the target. The strand is the unit
-of publication — anything not in an exported strand stays private, and
-selection is the consent act.
-
-**Workflow:**
-
-1. **Group in the timeline** (:8101): select beads → "Group into strand" →
-   name it; use the strand's EDIT to set place and event link.
-2. **Find the strand id:**
-
-       python scripts/export_public.py list
-       # bc424e19-…  2026-07-17  IoT London Meetup 156  [5 items]
-
-3. **Export into the site repo** (several ids allowed; newest renders first):
-
-       python scripts/export_public.py export <strand-id> [...] \
-         --out ~/TPM/geekyoto/public/cultureblocs \
-         --media-src ./data/media
-
-   Target whatever folder your generator serves at the site root:
-   `public/` (Astro/Next/plain Vercel), `static/` (Hugo), a passthrough
-   dir (Eleventy). If the String runs elsewhere (e.g. Docker on a home
-   server), run the export from any machine with `--spine http://<host>:8100`
-   over Tailscale — but note `--media-src` must be a local path to the
-   String's media directory, so either run the script on the host and copy
-   the output folder over, or mount/sync `data/media`.
-4. **Add the component** (once):
-
-       cp web/cultureblocs-strands.js ~/TPM/geekyoto/public/cultureblocs/
-
-   then in any template:
-
-       <script type="module" src="/cultureblocs/cultureblocs-strands.js"></script>
-       <cultureblocs-strands src="/cultureblocs/strands.json" limit="1"></cultureblocs-strands>
-
-   `limit="1"` = newest strand only (homepage); omit for a full /beads
-   page. Theme from site CSS via custom properties:
-
-       cultureblocs-strands{ --cb-accent:#2B4BC7; --cb-font:Charter,serif; }
-
-   (also: --cb-ink, --cb-faint, --cb-thread, --cb-card, --cb-edge)
-5. **Preview** with the site's dev server and read `strands.json` yourself —
-   it is small and human-readable, and what is in that file is exactly what
-   the world gets.
-6. **Ship:** commit `public/cultureblocs` and push; Vercel deploys.
-   Worth wrapping step 3 in a `make beads STRAND=<id>` target.
-
-**Privacy strip** (public web = strictest tier): geo coordinates and all
-provenance (device ids, mintIds, apps) are removed; place names, notes,
-tags, links, works and media survive. Media files are copied
-content-addressed, so re-exports are idempotent and cache-friendly.
-
-**Option 2 path:** the JSON keeps records in com.cultureblocs.* lexicon
-shape, and the component neither knows nor cares that it is reading a
-static file — when a PDS exists, a loader fetching the same shapes from
-public XRPC feeds identical markup. Baked vs live becomes a per-page
-choice, not a rewrite.
-
-## Scrobble worker (Sonos -> Last.fm -> listen beads)
-
-`workers/scrobbler.py` polls Last.fm recent tracks, clusters plays into
-listening sessions (>30-min gap = new session), and mints one `listen`
-bead per **closed** session with `provenance.app: "scrobbler"` — so the
-timeline shows them on the dotted machine rail with a release button,
-and they flow through normal curation. Idempotent: dedupe on the first
-track's timestamp; re-runs are no-ops; open or window-truncated
-sessions wait for the next run.
-
-    LASTFM_USER=you LASTFM_API_KEY=xxx python workers/scrobbler.py
-    # options: --spine --token --gap 30 --lookback 48 --dry-run
-    # loop mode: --daemon --interval 900
-
-Only the API key is needed (public read of your own history — un-hide
-"recent listening" in Last.fm privacy if empty). Run hourly via cron,
-or on macOS a LaunchAgent with StartInterval 3600, alongside
-sonos-lastfm which feeds the account. `--from-json export.json` imports
-a saved getRecentTracks payload (testing or bulk history import).
+- **cultureblocs.com** — the schema commons, apps, and London meetup
+  ([site repo](https://github.com/Geocontrol/cultureblocs-site) · the meetup page renders
+  strands live from `@cultureblocs.com`).
+- The embed component's canonical copy is `web/cultureblocs-strands.js`
+  in THIS repo; site repos carry copies — copy outward only.
