@@ -202,7 +202,20 @@ the venue's to collect.**
   their job being to exist as something beads can point at. CLI:
   `scripts/venue.py`. Publishing works under a venue's own held
   identity.
-- [ ] **Peckham pilot** — two grassroots venues; instance hosted by us,
+- [ ] **A venue app — separate project.** Venues need a different
+  toolkit and a different interface: no Tier 0, no beads, no telling —
+  everything they publish is public by intent. That collapses to a thin
+  client over ATProto plus the AppView (no per-venue server, no
+  database of venues), with five screens: profile, listings, the room
+  (public reference counts), export for funding applications, and a
+  public page. Working name: **Doors**. Brief:
+  `venue-app-brief.md`.
+- [ ] **The bridge that makes audience evidence real**: a QR code per
+  listing that opens the Pocket Totem with the listing pre-loaded, so
+  minting a bead about tonight is one tap. Needs a small Pocket Totem
+  change (`?ref=at://…` → the bead's `subject`). Without this, nobody
+  hand-types an at:// URI at a gig.
+- [ ] **Peckham pilot** — two grassroots venues; app hosted by us,
   identity and records theirs. Runbook in
   [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md).
 - [ ] **Calendar interop** — `venue.listing` carries an `event`
