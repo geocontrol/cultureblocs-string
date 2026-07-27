@@ -25,7 +25,10 @@ Three principles, enforced by architecture rather than policy:
 
 ## Layout
 
-    lexicons/com/cultureblocs/  the schema commons: defs, bead, annotation, strand
+    lexicons/com/cultureblocs/  the schema commons:
+                                defs, bead, annotation, strand;
+                                creative/{profile,work,connection};
+                                venue/{profile,listing}
     string/                     the String service (FastAPI + SQLite WAL)
     studio/                     CultureBloc Studio — pull the totem over Web
                                 Serial, resolve times, tell, push to the String
@@ -33,7 +36,8 @@ Three principles, enforced by architecture rather than policy:
                                 group into strands, publish
     web/                        <cultureblocs-strands> embed component
                                 (CANONICAL COPY — always copy outward from here)
-    scripts/                    mint, promote, export, lexicon publication, seed
+    scripts/                    mint, creative, venue, promote, export,
+                                lexicon publication, seed
     workers/                    scrobbler (Last.fm -> listen beads)
     sdk/python/                 offline capture queue (Swift port pending for AR)
     bridge/                     scripted totem-dump -> bead path
@@ -59,6 +63,10 @@ Open the timeline, load a day, and you have the whole loop minus a totem.
   encounters; pull over USB in the **Studio** (:8102), which resolves the
   device's elapsed-time counters to real instants, manages the mask
   wardrobe, and pushes kept beads in.
+- **CreativeID & venues**: `scripts/creative.py` (profile / work /
+  connect) and `scripts/venue.py` (profile / listing) — self-asserted
+  claims and venue listings that beads can point at. See
+  [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md).
 - **By hand**: `python scripts/mint.py --note "..." --kind read`
   — for moments no device witnessed. See `--help` for kinds, tags,
   place, links, and backdating.
@@ -89,6 +97,7 @@ the point: personal strands publish as you, organisational strands as
 the org — same desk, different letterhead. CLI equivalent:
 
     python scripts/promote.py publish <strand-id> --identity personal
+    python scripts/promote.py publish <record-id> --identity venue   # listings, claims
     python scripts/promote.py status          # drift since publish
 
 What publishes: place names, notes, tags, links, works, kinds, times.
@@ -139,6 +148,8 @@ up with `sqlite3 data/string.db ".backup backup.db"` and a copy of
   cultureblocs.com a resolvable schema authority (done; kept as the
   update mechanism).
 - [PROMOTER.md](PROMOTER.md) — publishing strands as signed records.
+- [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md) — the CreativeID and
+  venue lexicons, the self-attest model, and how to run a venue pilot.
 - [HOST-SPEC.md](HOST-SPEC.md) — the always-on host: a Raspberry Pi
   as a DataBrick for the household's cultural memory.
 - [MEETUP-RUNBOOK.md](MEETUP-RUNBOOK.md) — an event, end to end:

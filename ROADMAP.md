@@ -132,48 +132,88 @@ pattern; none of them is a feed.
 - [ ] **Repeatability** — the runbook becomes the standing pattern;
   every meetup feeds the site automatically.
 
-## 4 · CreativeID (design track)
+## 4 · CreativeID (lexicons landed; integrations next)
 
-Settled positions: the core work claim stays permanently tiny (title,
-reference URL, freeform date; only createdAt immutable) — enough for
-"this is mine / we did this." Industry, scenes, and forms not yet
-invented add layers as records in their own namespaces that
-*reference* the claim, never as fields on it. Role vocabularies are
-industry layers. Money routing consumes the graph; it does not live
-in it. Trust is computed from closed loops (A claims ↔ B attests) —
-the mutual-mint primitive at professional scale — with strongRef
-CID-pinning so silent edits visibly sever attestations.
+**The model is self-attestation.** The primary act is tagging a piece of
+work as yours; the record lives in your own repository and proves one
+narrow, honest thing — that this claim was made on this date by the
+holder of that repository. Unattested is the normal state, not a
+deficient one. Where two parties independently point at each other, a
+reader computes a verified relationship from the closed loop: the
+mutual-mint primitive at professional scale, with CID pinning so silent
+edits visibly break the loop.
 
-- [ ] **Now, tiny**: `creatorDid` on `workRef`.
-- [ ] **Phase 0 drafting** — `creative.work` and
-  `creative.connection` lexicons per the above. Namespace lean:
-  `com.cultureblocs.creative.*`, migration path open.
-- [ ] **Auracles** (successor to the Creative Passport) — three-tier
-  ask: stable resolvable per-person ID → expose as `did:web` →
-  bidirectional `alsoKnownAs` linkage for computed verification. A
-  join layer honouring their users' investment, not a competitor.
-- [ ] **Other ID systems** — `externalIds` as `{scheme, id}`: ISNI,
-  IPI, ORCID, Wikidata alongside Auracles as peers.
+**Layers reference; they never grow the core.** Industry metadata,
+scene vocabularies and licensing terms live in other namespaces
+pointing at a work's URI. Role vocabularies are externalised. Money
+routing consumes the graph and does not live in it. And **registration
+with ISNI/ISWC/ISRC and friends is somebody else's business** — a
+bridge service could lodge self-asserted works with those bodies (the
+shape exists already), and `externalIds` is the hook it writes back
+into. CultureBlocs is enough of a tag to facilitate that workflow, and
+stops there.
+
+- [x] **Lexicons drafted and live**: `creative.profile`,
+  `creative.work`, `creative.connection`, plus `creatorDid` on
+  `workRef` and a shared `externalId` type. CLI: `scripts/creative.py`.
+  Design notes: [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md).
+- [ ] **Auracles** (successor to the Creative Passport) — conversation
+  under way. The join is `externalIds` scheme `auracle`, plus a
+  reciprocal link if they expose a DID, so verification computes from a
+  closed loop rather than being granted by either side. They already
+  hold other identifiers per profile, so a DID field sits inside their
+  existing model.
+- [ ] **Other schemes** as peers: ISNI, IPI, ORCID, MusicBrainz,
+  Wikidata, and the newer consent registries (RSL Media, Spawning) —
+  point at a person's consent declaration rather than inventing a
+  permissions vocabulary here.
+- [ ] **Read CAWG's identity assertion spec** before extending
+  `creative.connection`: same problems (binding claims to exact
+  content, aggregating identity claims), more scrutiny.
 - [ ] **First real loop** — self-claim a work; the org attests it.
   Demonstrate before asking anyone to believe.
 
-## 5 · Venues & event data (deferred; re-entry triggers defined)
+### Possible joins (parking notes, not commitments)
 
-Deliberately parked. Wake when **(a)** the
-[Lexicon Community](https://github.com/lexicon-community) calendar
-work is stable enough to adopt (interoperate, don't fork), or
-**(b)** a real venue asks. Until then the meetup *is* the venue
-pilot. And per the framing: enhancement, not a calendar replacement.
+- **LOT** (https://lot-systems.com/ — subscription distribution of
+  digital + physical goods: wardrobes, self-care, home essentials).
+  Has an API for retrieving data: https://lot-systems.com/api (page is
+  client-rendered — read it properly when this gets picked up). Filed
+  as a possible join: physical goods with data attached sits near the
+  provenance/attestation thread and the brands-engaging-artists layer
+  from the Art Life framing. Nothing designed yet.
 
-- [ ] `exhibition` and `work.listing` lexicons (listings double as
-  the AR recognition-pack channel).
-- [ ] Venue onboarding tooling.
-- [ ] Tier 1 engagement signals (consented, anonymised audience
-  insight) once ATProto's permissioned-data layer matures.
-- [ ] **The AppView** — a Jetstream listener on `com.cultureblocs.*`
-  (~50 lines): "my strands" becomes "strands across the network."
-  Meaningful the moment a second person publishes; may deserve
-  promotion out of this section.
+## 5 · Venues & audience evidence (pilot active)
+
+The distinguishing bet, and the part no other system has: **the venue
+does not gather the data — the audience publishes it.** A venue puts out
+a listing with a stable URI; attendees' beads reference it if they
+choose; the venue counts *public* references. It never collects, stores
+or processes anything about a person — which is the difference between
+impossible and trivial for a grassroots space with no data protection
+officer. What such venues need evidence for is unglamorous: funding
+applications, licensing and landlord arguments, a record that a night
+happened.
+
+Stated boundary: **public references are countable; identities are not
+the venue's to collect.**
+
+- [x] **Lexicons**: `venue.profile`, `venue.listing` — thin by design,
+  their job being to exist as something beads can point at. CLI:
+  `scripts/venue.py`. Publishing works under a venue's own held
+  identity.
+- [ ] **Peckham pilot** — two grassroots venues; instance hosted by us,
+  identity and records theirs. Runbook in
+  [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md).
+- [ ] **Calendar interop** — `venue.listing` carries an `event`
+  strongRef so it can point at a general-purpose event record rather
+  than fork one; check the Lexicon Community calendar work before
+  adding any date/recurrence machinery here.
+- [ ] **The AppView** — a Jetstream listener over `com.cultureblocs.*`
+  (~50 lines) that turns scattered references into counts. Promoted out
+  of "someday": it is the piece that makes audience evidence legible.
+- [ ] Tier 1 engagement signals (consented, anonymised) only if and
+  when ATProto's permissioned-data layer makes them honest.
 
 ## 6 · AR (bottom of the list, by design)
 

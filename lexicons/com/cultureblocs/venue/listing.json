@@ -1,0 +1,108 @@
+{
+  "lexicon": 1,
+  "id": "com.cultureblocs.venue.listing",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Something happening at a venue: a gig, screening, exhibition run, meetup. Deliberately thin \u2014 its job is to be a stable thing that beads can point at, not to be a calendar. Where a general-purpose event record exists elsewhere (e.g. the Lexicon Community calendar work), point at it with `event` rather than duplicating it here; this record then carries only what CultureBlocs needs.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "title",
+          "start",
+          "createdAt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxGraphemes": 300
+          },
+          "description": {
+            "type": "string",
+            "maxGraphemes": 2000
+          },
+          "start": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "end": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "venue": {
+            "type": "union",
+            "refs": [
+              "com.cultureblocs.defs#placeRef",
+              "com.cultureblocs.defs#strongRef"
+            ],
+            "description": "The venue profile record, or a named place when the venue has no CultureBlocs identity."
+          },
+          "billing": {
+            "type": "array",
+            "maxLength": 20,
+            "items": {
+              "type": "ref",
+              "ref": "com.cultureblocs.defs#creditRef"
+            },
+            "description": "Who is on: performers, artists, speakers, DJs. `did` links to a creative profile where one exists."
+          },
+          "works": {
+            "type": "array",
+            "maxLength": 20,
+            "items": {
+              "type": "ref",
+              "ref": "com.cultureblocs.defs#workRef"
+            },
+            "description": "Works shown or performed, where the listing is specific about them."
+          },
+          "event": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#strongRef",
+            "description": "Interop hook: a general-purpose event record elsewhere that this listing corresponds to. Prefer pointing over duplicating."
+          },
+          "status": {
+            "type": "string",
+            "maxGraphemes": 32,
+            "knownValues": [
+              "scheduled",
+              "cancelled",
+              "postponed",
+              "soldout"
+            ]
+          },
+          "links": {
+            "type": "array",
+            "maxLength": 8,
+            "items": {
+              "type": "ref",
+              "ref": "com.cultureblocs.defs#linkRef"
+            },
+            "description": "Tickets, event page, the venue's own listing."
+          },
+          "externalIds": {
+            "type": "array",
+            "maxLength": 20,
+            "items": {
+              "type": "ref",
+              "ref": "com.cultureblocs.defs#externalId"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "maxLength": 8,
+            "items": {
+              "type": "string",
+              "maxGraphemes": 64
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this record was first stamped. The only immutable field: everything else may be revised by publishing a new commit."
+          }
+        }
+      }
+    }
+  }
+}

@@ -50,7 +50,7 @@ def xrpc(pds: str, method: str, *, params: dict | None = None,
 
 def load_lexicons() -> list[dict]:
     docs = []
-    for f in sorted(LEX_DIR.glob("*.json")):
+    for f in sorted(LEX_DIR.rglob("*.json")):
         doc = json.loads(f.read_text())
         if doc.get("lexicon") == 1 and "id" in doc:
             docs.append(doc)

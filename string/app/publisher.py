@@ -103,11 +103,61 @@ def _media_blobs(rec_body: dict, media_dir, pds: str, jwt: str) -> list:
     return blobs
 
 
+PUBLIC_TYPES = ("com.cultureblocs.creative.profile", "com.cultureblocs.creative.work",
+                "com.cultureblocs.creative.connection", "com.cultureblocs.venue.profile",
+                "com.cultureblocs.venue.listing")
+
+SELF_KEYED = ("com.cultureblocs.creative.profile", "com.cultureblocs.venue.profile")
+
+
+def strip_public(body: dict) -> dict:
+    """Records that are public by intent (creative claims, venue listings).
+
+    These are written to be read by strangers, so the body publishes as
+    authored — minus local-only machinery: provenance (device/app internals)
+    and `media` refs that point at files on the author's own String. A venue's
+    address and coordinates are the point of the record and stay.
+    """
+    return {k: v for k, v in body.items() if k not in ("provenance", "media")}
+
+
+def publish_record(store, record_id: str, identity: dict) -> dict:
+    """Publish a single non-strand record under a held identity."""
+    rec = store.get(record_id)
+    if rec is None:
+        raise ValueError("not found")
+    if rec["type"] not in PUBLIC_TYPES:
+        raise ValueError(f"{rec['type']} is not publishable on its own; "
+                         "beads and annotations publish as part of a strand")
+    did, jwt, pds = _login(identity)
+    stripped = strip_public(rec["body"])
+    rkey = "self" if rec["type"] in SELF_KEYED else record_id
+    res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
+        "repo": did, "collection": rec["type"], "rkey": rkey, "record": stripped})
+    store.set_published(record_id, res["uri"], content_hash(stripped))
+    return {"identity": identity["name"], "handle": identity["handle"],
+            "did": did, "records": [res["uri"]], "uri": res["uri"]}
+
+
+def unpublish_record(store, record_id: str, identity: dict) -> dict:
+    rec = store.get(record_id)
+    if rec is None or not rec.get("publishedUri"):
+        return {"removed": 0}
+    did, jwt, pds = _login(identity)
+    parts = rec["publishedUri"].split("/")
+    _xrpc(pds, "com.atproto.repo.deleteRecord", token=jwt, body={
+        "repo": did, "collection": parts[-2], "rkey": parts[-1]})
+    store.set_published(record_id, None, None)
+    return {"removed": 1}
+
+
 def publish_strand(store, strand_id: str, identity: dict,
                    media_dir=None) -> dict:
     strand = store.get(strand_id)
-    if strand is None or strand["type"] != STRAND:
-        raise ValueError("not a strand")
+    if strand is None:
+        raise ValueError("not found")
+    if strand["type"] != STRAND:
+        return publish_record(store, strand_id, identity)
     did, jwt, pds = _login(identity)
     published = []
     item_refs = []
@@ -136,8 +186,10 @@ def publish_strand(store, strand_id: str, identity: dict,
 
 def unpublish_strand(store, strand_id: str, identity: dict) -> dict:
     strand = store.get(strand_id)
-    if strand is None or strand["type"] != STRAND:
-        raise ValueError("not a strand")
+    if strand is None:
+        raise ValueError("not found")
+    if strand["type"] != STRAND:
+        return unpublish_record(store, strand_id, identity)
     did, jwt, pds = _login(identity)
     removed = 0
     for it in (strand["body"].get("items") or []):
