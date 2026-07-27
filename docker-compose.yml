@@ -12,6 +12,18 @@ services:
       # STRING_TOKEN: change-me        # uncomment to require auth
     restart: unless-stopped
 
+  appview:
+    build: ./appview
+    ports: ["8104:8104"]
+    volumes:
+      - ./data:/data
+    environment:
+      APPVIEW_DB: /data/appview.db
+      # comma-separated handles/DIDs to index at startup (existing repos)
+      APPVIEW_SEED: ""
+      # APPVIEW_LIVE: "0"   # set to disable the firehose and index on demand
+    restart: unless-stopped
+
   pocket:
     image: nginx:alpine
     ports: ["8103:80"]

@@ -39,6 +39,7 @@ Three principles, enforced by architecture rather than policy:
     scripts/                    mint, creative, venue, promote, export,
                                 lexicon publication, seed
     workers/                    scrobbler (Last.fm -> listen beads)
+    appview/                    network index: Jetstream consumer + query API
     sdk/python/                 offline capture queue (Swift port pending for AR)
     bridge/                     scripted totem-dump -> bead path
     skill/                      agent skill: drive the String from Claude Code
@@ -54,6 +55,7 @@ Three principles, enforced by architecture rather than policy:
 | :8101 | Timeline ("the day's string") |
 | :8102 | CultureBloc Studio |
 | :8103 | Pocket Totem (PWA — phone minting) |
+| :8104 | AppView (network index — public references) |
 
 Open the timeline, load a day, and you have the whole loop minus a totem.
 
@@ -148,6 +150,8 @@ up with `sqlite3 data/string.db ".backup backup.db"` and a copy of
   cultureblocs.com a resolvable schema authority (done; kept as the
   update mechanism).
 - [PROMOTER.md](PROMOTER.md) — publishing strands as signed records.
+- [APPVIEW.md](APPVIEW.md) — the network index: how public references
+  become counts, and what it deliberately does not do.
 - [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md) — the CreativeID and
   venue lexicons, the self-attest model, and how to run a venue pilot.
 - [HOST-SPEC.md](HOST-SPEC.md) — the always-on host: a Raspberry Pi

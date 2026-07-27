@@ -209,9 +209,11 @@ the venue's to collect.**
   strongRef so it can point at a general-purpose event record rather
   than fork one; check the Lexicon Community calendar work before
   adding any date/recurrence machinery here.
-- [ ] **The AppView** — a Jetstream listener over `com.cultureblocs.*`
-  (~50 lines) that turns scattered references into counts. Promoted out
-  of "someday": it is the piece that makes audience evidence legible.
+- [x] **The AppView** — built (`appview/`, :8104): Jetstream consumer
+  plus repo backfill, a structural reference graph, and endpoints that
+  answer "how many people publicly said they were at this".
+  Verification of attestations is computed from closed loops at read
+  time, never stored as a flag. See [APPVIEW.md](APPVIEW.md).
 - [ ] Tier 1 engagement signals (consented, anonymised) only if and
   when ATProto's permissioned-data layer makes them honest.
 
