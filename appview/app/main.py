@@ -128,6 +128,41 @@ def creative(actor: str) -> dict:
             "works": works, "claims": claims}
 
 
+EMPTY_PANEL = """
+<div class="panel">
+  <h3>Nothing indexed yet</h3>
+  <p>Two ways in. <b>Live</b>: the firehose delivers records as people
+  publish them — nothing appears until someone does. <b>Backfill</b>:
+  records published before this AppView started are invisible until you
+  ask for them, which is most of them on a first run.</p>
+  <p>Index a repo now — try your own handle:</p>
+  <form onsubmit="return bf(event)">
+    <input id="actor" placeholder="handle or did:plc:…" autocomplete="off">
+    <button type="submit">Backfill</button>
+  </form>
+  <div class="out" id="out"></div>
+  <p class="out">To do this on every start, set <code>APPVIEW_SEED</code>
+  in docker-compose.yml to a comma-separated list of handles.</p>
+</div>
+<script>
+async function bf(e){
+  e.preventDefault();
+  const a = document.getElementById('actor').value.trim();
+  const out = document.getElementById('out');
+  if(!a) return false;
+  out.textContent = 'indexing ' + a + '…';
+  try{
+    const r = await fetch('/backfill?actor=' + encodeURIComponent(a), {method:'POST'});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail || r.status);
+    out.textContent = d.total + ' records indexed — reloading…';
+    setTimeout(()=>location.reload(), 700);
+  }catch(err){ out.textContent = 'failed: ' + err.message; }
+  return false;
+}
+</script>
+"""
+
 ROW = ("<tr><td class='m'>{when}</td><td>{title}</td>"
        "<td class='n'>{refs}</td><td class='n'>{people}</td></tr>")
 
@@ -147,7 +182,12 @@ def home() -> str:
             title=html.escape(l["value"].get("title", "(untitled)")),
             refs=c["references"], people=c["publishers"])
     if not rows:
-        rows = "<tr><td colspan='4' class='m'>no listings indexed yet</td></tr>"
+        rows = ("<tr><td colspan='4' class='m'>no listings indexed yet — "
+                "a venue publishes these; see APPVIEW.md</td></tr>")
+    if not coll_rows:
+        coll_rows = "<tr><td class='m'>nothing indexed yet</td></tr>"
+    empty_panel = "" if s["records"] else EMPTY_PANEL
+    live = "following the firehose" if LIVE else "firehose disabled (APPVIEW_LIVE=0)"
     return f"""<!doctype html><meta charset=utf-8>
 <title>CultureBlocs AppView</title>
 <style>
@@ -169,11 +209,26 @@ def home() -> str:
  .big div small{{color:var(--faint);font:.7rem/1.4 Futura,sans-serif;
    letter-spacing:.14em;text-transform:uppercase}}
  code{{font-size:.85em}}
+ .m2{{font-family:ui-monospace,Menlo,monospace;font-size:.8rem;color:var(--faint)}}
+ .panel{{border:1px solid var(--edge);border-left:3px solid var(--accent);
+   background:#fff;border-radius:8px;padding:1.1rem 1.3rem;margin:0 0 1.5rem}}
+ .panel h3{{font:600 .78rem Futura,"Avenir Next",sans-serif;letter-spacing:.14em;
+   text-transform:uppercase;margin:0 0 .5rem}}
+ .panel p{{margin:.3rem 0;font-size:.92rem}}
+ .panel form{{display:flex;gap:.5rem;margin-top:.9rem;flex-wrap:wrap}}
+ .panel input{{flex:1;min-width:14rem;font:.9rem ui-monospace,Menlo,monospace;
+   padding:.5rem .6rem;border:1px solid var(--edge);border-radius:4px}}
+ .panel button{{font:600 .75rem Futura,sans-serif;letter-spacing:.12em;
+   text-transform:uppercase;background:var(--accent);color:#fff;border:0;
+   border-radius:4px;padding:.55rem 1rem;cursor:pointer}}
+ .panel .out{{font-family:ui-monospace,Menlo,monospace;font-size:.8rem;
+   color:var(--faint);margin-top:.6rem}}
 </style>
 <main>
 <h1>CultureBlocs AppView</h1>
 <p class="lede">A lens over public <code>com.cultureblocs.*</code> records.
 It counts what people chose to publish — never anything about anyone who didn't.</p>
+{empty_panel}
 <div class="big">
   <div><span>{s['records']}</span><small>records</small></div>
   <div><span>{s['publishers']}</span><small>publishers</small></div>
@@ -184,6 +239,9 @@ It counts what people chose to publish — never anything about anyone who didn'
 <td class="n m">refs</td><td class="n m">people</td></tr>{rows}</table>
 <h2>Indexed collections</h2>
 <table>{coll_rows}</table>
+<h2>Status</h2>
+<p class="m2">{live}. Records arrive live as people publish; anything
+published earlier needs a one-off backfill.</p>
 <h2>API</h2>
 <table>
 <tr><td class="m">GET /venue/{{handle}}</td><td>profile, listings, reference counts</td></tr>
