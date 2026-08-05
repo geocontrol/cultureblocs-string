@@ -27,6 +27,16 @@ header button:focus-visible{outline:1px solid var(--paper)}
 main{flex:1;width:100%;max-width:420px;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:22px;min-height:0}
 canvas{touch-action:manipulation;cursor:pointer;max-width:100%;height:auto}
+#tonight{display:flex;align-items:center;gap:9px;border:1px solid var(--red);
+  border-radius:999px;padding:7px 9px 7px 14px;color:var(--paper);
+  font:10px var(--mono);letter-spacing:.18em;text-transform:uppercase;
+  max-width:100%;}
+#tonight .dot{width:7px;height:7px;border-radius:50%;background:var(--red);
+  flex:0 0 auto}
+#tonight span#tonight-label{overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+#tonight button{background:none;border:0;color:var(--dim);font:12px var(--mono);
+  cursor:pointer;padding:0 2px}
 #masks{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 #masks button{background:none;border:1px solid var(--dim);border-radius:999px;
   color:var(--dim);font:10px var(--mono);letter-spacing:.22em;padding:7px 14px;
@@ -66,6 +76,8 @@ footer.queued .q{display:block}
   <button id="cog" aria-label="settings">···</button>
 </header>
 <main>
+  <div id="tonight" hidden><span class="dot"></span><span id="tonight-label"></span>
+    <button id="tonight-clear" aria-label="clear">×</button></div>
   <canvas id="m" width="640" height="640" aria-label="mint a bead"></canvas>
   <div id="masks" role="radiogroup" aria-label="mask"></div>
   <input id="note" placeholder="SAY SOMETHING · OPTIONAL" autocomplete="off" maxlength="280">
@@ -89,6 +101,26 @@ footer.queued .q{display:block}
 </div>
 
 <script>
+/* ---------- tonight's reference (from a venue QR code) ---------- */
+const qp = new URLSearchParams(location.search);
+let ref = null;
+(function initRef(){
+  const u = qp.get('ref');
+  if(u && u.startsWith('at://')){
+    ref = {uri: u, label: (qp.get('label') || 'tonight').slice(0,60)};
+    sessionStorage.setItem('pt:ref', JSON.stringify(ref));
+    history.replaceState({}, '', location.pathname);   // keep the URL clean
+  }else{
+    try{ ref = JSON.parse(sessionStorage.getItem('pt:ref') || 'null') }catch(e){ ref = null }
+  }
+})();
+function renderRef(){
+  const el = document.getElementById('tonight');
+  if(!el) return;
+  el.hidden = !ref;
+  if(ref) document.getElementById('tonight-label').textContent = ref.label;
+}
+
 /* ---------- state ---------- */
 const LS = k => JSON.parse(localStorage.getItem('pt:'+k) || 'null');
 const SV = (k,v) => localStorage.setItem('pt:'+k, JSON.stringify(v));
@@ -186,10 +218,12 @@ function uuid(){ return crypto.randomUUID ? crypto.randomUUID()
 function mint(){
   const now = new Date().toISOString();
   const note = noteEl.value.trim();
-  const body = {"$type":"com.cultureblocs.bead", createdAt: now, kind:"bloc",
+  const body = {"$type":"com.cultureblocs.bead", createdAt: now,
+    kind: ref ? "performance" : "bloc",
     tags:[masks[mi].n.toLowerCase()],
     provenance:{app:"pocket", mintedAt: now, timeAnchored:true}};
   if(note) body.note = note;
+  if(ref) body.subject = {"$type":"com.cultureblocs.defs#strongRef", uri: ref.uri};
   queue.push({dedupeKey:"pocket:"+uuid(), type:"com.cultureblocs.bead",
     sourceApp:"pocket-totem", createdAt: now, body});
   SV('q', queue); noteEl.value='';
@@ -198,6 +232,11 @@ function mint(){
   status.textContent = 'MINTED ' + now.slice(11,16);
   setStatus(); flush();
 }
+document.getElementById('tonight-clear').addEventListener('click', ()=>{
+  ref = null; sessionStorage.removeItem('pt:ref'); renderRef();
+  status.textContent = 'READY';
+});
+renderRef();
 cv.addEventListener('click', mint);
 cv.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') mint(); });
 cv.tabIndex = 0;
