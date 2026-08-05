@@ -97,15 +97,21 @@ def _split_referrers(uri: str) -> dict:
             beads.append(r)
         else:
             other.append(r)
+
+    def _going(r) -> bool:
+        # records come from the open network: assume nothing about types
+        status = (r["value"] or {}).get("status")
+        return isinstance(status, str) and status.endswith("#going")
+
     return {
         "rsvps": len(rsvps),
-        "going": sum(1 for r in rsvps
-                     if (r["value"] or {}).get("status", "").endswith("#going")),
+        "going": sum(1 for r in rsvps if _going(r)),
         "beads": len(beads),
         "beadPublishers": len({b["did"] for b in beads}),
         "notes": [{"did": b["did"], "note": (b["value"] or {}).get("note"),
                    "createdAt": b.get("createdAt")}
-                  for b in beads if (b["value"] or {}).get("note")],
+                  for b in beads
+                  if isinstance((b["value"] or {}).get("note"), str)],
         "lineups": [r for r in other
                     if r["collection"] == "com.cultureblocs.venue.lineup"],
     }
@@ -218,23 +224,45 @@ ROW = ("<tr><td class='m'>{when}</td><td>{title}</td>"
 
 @app.get("/", response_class=HTMLResponse)
 def home() -> str:
+    try:
+        return _home()
+    except Exception as exc:          # never a blank 500 on the front page
+        import traceback
+        traceback.print_exc()
+        return (f"<pre style='font:13px ui-monospace;padding:2rem'>"
+                f"AppView dashboard error: {html.escape(str(exc))}\n\n"
+                f"The API is unaffected — try /stats or /health.\n"
+                f"Details are in the container log.</pre>")
+
+
+def _home() -> str:
     s = index.stats()
     coll_rows = "".join(
         f"<tr><td class='m'>{html.escape(k)}</td><td class='n'>{v}</td></tr>"
         for k, v in sorted(s["byCollection"].items()))
+    def _when(v: dict) -> str:
+        w = v.get("startsAt") or v.get("start") or ""
+        return w if isinstance(w, str) else ""
+
+    def _name(v: dict) -> str:
+        n = v.get("name") or v.get("title") or "(untitled)"
+        return n if isinstance(n, str) else "(untitled)"
+
     events = (index.records(EVENT, None, 20)
               + index.records(LEGACY_LISTING, None, 10))
     rows = ""
-    for l in sorted(events, key=lambda x: (x["value"].get("startsAt")
-                                           or x["value"].get("start") or ""),
-                    reverse=True)[:20]:
-        v = l["value"]
-        s = _split_referrers(l["uri"])
-        rows += ROW.format(
-            when=html.escape(((v.get("startsAt") or v.get("start") or "")[:16])
-                             .replace("T", " ")),
-            title=html.escape(v.get("name") or v.get("title") or "(untitled)"),
-            refs=s["rsvps"], people=s["beads"])
+    for l in sorted(events, key=lambda x: _when(x["value"]), reverse=True)[:20]:
+        # one malformed record from the open network must never take the
+        # whole dashboard down
+        try:
+            v = l["value"]
+            split = _split_referrers(l["uri"])      # not `s` — that is stats
+            rows += ROW.format(
+                when=html.escape(_when(v)[:16].replace("T", " ")),
+                title=html.escape(_name(v)),
+                refs=split["rsvps"], people=split["beads"])
+        except Exception as exc:      # pragma: no cover - defensive
+            print(f"[dashboard] skipped {l.get('uri')}: {exc}", flush=True)
     if not rows:
         rows = ("<tr><td colspan='4' class='m'>no events indexed yet — "
                 "backfill a venue or organiser above</td></tr>")
