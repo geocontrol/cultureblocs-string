@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 from .db import Index, uri_parts
-from .ingest import backfill, consume, resolve_handle
+from .ingest import EVENT, LEGACY_LISTING, RSVP, backfill, consume, resolve_handle
 
 DB_PATH = os.environ.get("APPVIEW_DB", "/data/appview.db")
 SEED_ACTORS = [a.strip() for a in os.environ.get("APPVIEW_SEED", "").split(",") if a.strip()]
@@ -80,27 +80,76 @@ def references(uri: str) -> dict:
             "referrers": index.referrers(uri)}
 
 
+def _split_referrers(uri: str) -> dict:
+    """Who pointed at this event, and in which tense.
+
+    An RSVP is intent — "I'm going". A bead is experience — "I was here,
+    and it was like this". Both are strongRefs to the same event record,
+    published by different apps. Counting them separately is the whole
+    point: one is a plan, the other is evidence.
+    """
+    rsvps, beads, other = [], [], []
+    for r in index.referrers(uri):
+        if r["collection"] == RSVP:
+            rsvps.append(r)
+        elif r["collection"] in ("com.cultureblocs.bead",
+                                 "com.cultureblocs.annotation"):
+            beads.append(r)
+        else:
+            other.append(r)
+    return {
+        "rsvps": len(rsvps),
+        "going": sum(1 for r in rsvps
+                     if (r["value"] or {}).get("status", "").endswith("#going")),
+        "beads": len(beads),
+        "beadPublishers": len({b["did"] for b in beads}),
+        "notes": [{"did": b["did"], "note": (b["value"] or {}).get("note"),
+                   "createdAt": b.get("createdAt")}
+                  for b in beads if (b["value"] or {}).get("note")],
+        "lineups": [r for r in other
+                    if r["collection"] == "com.cultureblocs.venue.lineup"],
+    }
+
+
 @app.get("/venue/{actor}")
 def venue(actor: str) -> dict:
-    """A venue's public record: profile, listings, and how many people
-    publicly said they were there."""
+    """A venue's public record: profile, what's on, and who publicly said
+    they were coming (RSVPs) or that they were there (beads).
+
+    Events are community.lexicon.calendar.event records — the shared event
+    type of the open social web — so this works for any venue publishing
+    them, whether or not it has ever heard of CultureBlocs.
+    """
     try:
         did = resolve_handle(actor)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     profile = index.records("com.cultureblocs.venue.profile", did, 1)
-    listings = []
-    for l in index.records("com.cultureblocs.venue.listing", did, 200):
-        counts = index.reference_count(l["uri"])
-        listings.append({**l, **counts})
-    listings.sort(key=lambda x: (x["value"].get("start") or ""), reverse=True)
+    events = []
+    for e in (index.records(EVENT, did, 200)
+              + index.records(LEGACY_LISTING, did, 200)):
+        v = e["value"]
+        events.append({**e, **index.reference_count(e["uri"]),
+                       **_split_referrers(e["uri"]),
+                       "name": v.get("name") or v.get("title"),
+                       "startsAt": v.get("startsAt") or v.get("start")})
+    events.sort(key=lambda x: (x["startsAt"] or ""), reverse=True)
     return {"did": did,
             "profile": profile[0] if profile else None,
-            "listings": listings,
-            "totals": {"listings": len(listings),
-                       "references": sum(l["references"] for l in listings),
-                       "publishers": len({r["did"] for l in listings
-                                          for r in index.referrers(l["uri"])})}}
+            "events": events,
+            "totals": {"events": len(events),
+                       "rsvps": sum(e["rsvps"] for e in events),
+                       "beads": sum(e["beads"] for e in events),
+                       "publishers": len({r["did"] for e in events
+                                          for r in index.referrers(e["uri"])})}}
+
+
+@app.get("/event")
+def event(uri: str) -> dict:
+    """One event and everything pointing at it, whoever published it."""
+    rec = index.get(uri)
+    return {"uri": uri, "event": rec,
+            **index.reference_count(uri), **_split_referrers(uri)}
 
 
 @app.get("/creative/{actor}")
@@ -173,17 +222,22 @@ def home() -> str:
     coll_rows = "".join(
         f"<tr><td class='m'>{html.escape(k)}</td><td class='n'>{v}</td></tr>"
         for k, v in sorted(s["byCollection"].items()))
-    listings = index.records("com.cultureblocs.venue.listing", None, 20)
+    events = (index.records(EVENT, None, 20)
+              + index.records(LEGACY_LISTING, None, 10))
     rows = ""
-    for l in listings:
-        c = index.reference_count(l["uri"])
+    for l in sorted(events, key=lambda x: (x["value"].get("startsAt")
+                                           or x["value"].get("start") or ""),
+                    reverse=True)[:20]:
+        v = l["value"]
+        s = _split_referrers(l["uri"])
         rows += ROW.format(
-            when=html.escape((l["value"].get("start") or "")[:16].replace("T", " ")),
-            title=html.escape(l["value"].get("title", "(untitled)")),
-            refs=c["references"], people=c["publishers"])
+            when=html.escape(((v.get("startsAt") or v.get("start") or "")[:16])
+                             .replace("T", " ")),
+            title=html.escape(v.get("name") or v.get("title") or "(untitled)"),
+            refs=s["rsvps"], people=s["beads"])
     if not rows:
-        rows = ("<tr><td colspan='4' class='m'>no listings indexed yet — "
-                "a venue publishes these; see APPVIEW.md</td></tr>")
+        rows = ("<tr><td colspan='4' class='m'>no events indexed yet — "
+                "backfill a venue or organiser above</td></tr>")
     if not coll_rows:
         coll_rows = "<tr><td class='m'>nothing indexed yet</td></tr>"
     empty_panel = "" if s["records"] else EMPTY_PANEL
@@ -234,9 +288,11 @@ It counts what people chose to publish — never anything about anyone who didn'
   <div><span>{s['publishers']}</span><small>publishers</small></div>
   <div><span>{s['references']}</span><small>references</small></div>
 </div>
-<h2>Listings &amp; public references</h2>
-<table><tr><td class="m">when</td><td class="m">listing</td>
-<td class="n m">refs</td><td class="n m">people</td></tr>{rows}</table>
+<h2>Events &amp; public traces</h2>
+<p class="m2">RSVPs are intent; beads are evidence someone was there.
+Both point at the same event record.</p>
+<table><tr><td class="m">when</td><td class="m">event</td>
+<td class="n m">rsvps</td><td class="n m">beads</td></tr>{rows}</table>
 <h2>Indexed collections</h2>
 <table>{coll_rows}</table>
 <h2>Status</h2>
@@ -244,7 +300,8 @@ It counts what people chose to publish — never anything about anyone who didn'
 published earlier needs a one-off backfill.</p>
 <h2>API</h2>
 <table>
-<tr><td class="m">GET /venue/{{handle}}</td><td>profile, listings, reference counts</td></tr>
+<tr><td class="m">GET /venue/{{handle}}</td><td>profile, events, RSVP and bead counts</td></tr>
+<tr><td class="m">GET /event?uri=</td><td>one event and everything pointing at it</td></tr>
 <tr><td class="m">GET /creative/{{handle}}</td><td>works, attestations, computed verification</td></tr>
 <tr><td class="m">GET /references?uri=</td><td>who publicly pointed at a record</td></tr>
 <tr><td class="m">GET /records?collection=&amp;did=</td><td>raw index</td></tr>

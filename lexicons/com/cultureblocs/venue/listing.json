@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "Something happening at a venue: a gig, screening, exhibition run, meetup. Deliberately thin \u2014 its job is to be a stable thing that beads can point at, not to be a calendar. Where a general-purpose event record exists elsewhere (e.g. the Lexicon Community calendar work), point at it with `event` rather than duplicating it here; this record then carries only what CultureBlocs needs.",
+      "description": "DEPRECATED \u2014 do not write new records. Use community.lexicon.calendar.event instead: it is the shared event record of the open social web, so a venue's nights appear in every calendar app on the network rather than only in CultureBlocs. Cultural extras that the community event does not carry (who is on, works performed) live in com.cultureblocs.venue.lineup, which references the event. This schema remains published so existing records stay resolvable.",
       "key": "tid",
       "record": {
         "type": "object",

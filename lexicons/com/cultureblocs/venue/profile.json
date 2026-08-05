@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A venue or organiser as a publishing party: the small amount a grassroots space needs to be findable and pointable-at. Publishing this does not make the venue an audience-data platform \u2014 audiences publish their own beads referencing the venue's listings, and the venue reads public references. Nothing about an attendee is ever collected here.",
+      "description": "A venue or organiser as a publishing party: the small amount a grassroots space needs to be findable and pointable-at. Publishing this does not make the venue an audience-data platform \u2014 audiences publish their own beads referencing the venue's listings, and the venue reads public references. Nothing about an attendee is ever collected here. Events at this venue are published as community.lexicon.calendar.event records; this profile carries what a venue needs that an event does not \u2014 capacity and access, which funders and licensing ask for.",
       "key": "literal:self",
       "record": {
         "type": "object",
@@ -69,6 +69,16 @@
             "type": "string",
             "format": "datetime",
             "description": "When this record was first stamped. The only immutable field: everything else may be revised by publishing a new commit."
+          },
+          "location": {
+            "type": "union",
+            "refs": [
+              "community.lexicon.location.address",
+              "community.lexicon.location.geo",
+              "community.lexicon.location.fsq",
+              "community.lexicon.location.hthree"
+            ],
+            "description": "Where the venue is, using the shared location objects of the open social web so other apps understand it. Preferred over the legacy `place`/`address` fields."
           }
         }
       }

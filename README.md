@@ -28,7 +28,9 @@ Three principles, enforced by architecture rather than policy:
     lexicons/com/cultureblocs/  the schema commons:
                                 defs, bead, annotation, strand;
                                 creative/{profile,work,connection};
-                                venue/{profile,listing}
+                                venue/{profile,lineup}
+    lexicons/community/         vendored Lexicon Community schemas
+                                (calendar events + RSVPs, locations)
     string/                     the String service (FastAPI + SQLite WAL)
     studio/                     CultureBloc Studio — pull the totem over Web
                                 Serial, resolve times, tell, push to the String

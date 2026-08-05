@@ -9,7 +9,14 @@ than registries.
     com.cultureblocs.creative.connection  a directional claim about
                                           another party or record
     com.cultureblocs.venue.profile        a venue as a publishing party
-    com.cultureblocs.venue.listing        something happening there
+    com.cultureblocs.venue.lineup         who is on, over a shared event
+
+Events themselves are NOT ours. They are published as
+`community.lexicon.calendar.event` — the shared event record stewarded by
+[Lexicon Community](https://lexicon.community) — so a venue's programme
+appears in every calendar app that speaks it (atmo.rsvp and others),
+not only in CultureBlocs. `com.cultureblocs.venue.listing` is
+**deprecated**; it remains published so existing records resolve.
 
 ## The positions these encode
 
@@ -46,6 +53,33 @@ as a side-effect of profile creation). CultureBlocs does not build it.
 
 **Money is out of scope by design.** These records make the who-did-what
 graph legible; payment routing consumes that graph from outside.
+
+## Why we adopted the community event
+
+We drafted our own listing type before discovering that the shared one was
+real and in use — Edition Festival publishes its whole programme as
+`community.lexicon.calendar.event` records via VenueCMS, and atmo.rsvp
+reads them. Forking a live standard to gain three fields would have been
+exactly the mistake this project keeps warning about, so:
+
+- **The event is the shared record.** We write it, we read it, we do not
+  own it. If a venue already publishes events some other way, we index
+  those instead and add nothing.
+- **Our layer references it.** `venue.lineup` carries who is on and works
+  shown, pinned to the event by strongRef. Same discipline as the creative
+  namespace: layers reference the core claim rather than growing it. If
+  these fields prove generally useful they belong upstream, in the
+  community lexicon, not here.
+- **Two tenses, one record.** `community.lexicon.calendar.rsvp` says
+  *I'm going*; a bead pointing at the same event says *I was here, and it
+  was like this*. Nobody was doing the second one. That is the gap
+  CultureBlocs fills, and it now fills it inside an existing network with
+  existing publishers rather than one built from nothing.
+- **Vendored, not copied.** The community schemas live under
+  `lexicons/community/` so the String can validate records that use them;
+  `scripts/vendor_community_lexicons.py` refreshes them from the
+  authority. Our lexicon publisher deliberately skips them — claiming
+  authority over someone else's namespace would be a lie.
 
 ## The audience↔work join
 
@@ -96,12 +130,21 @@ You host the String; the venue owns its identity and its records.
 
    It publishes at rkey `self`, so re-publishing updates in place.
 
-3. **A listing per night.**
+3. **An event per night**, in the shared type:
 
-       python scripts/venue.py listing --title "Friday Session" \
-         --start 2026-08-14T20:00:00Z --venue-uri at://…/self \
-         --billing "The Bug Club|live" --link "https://dice.fm/…|tickets"
+       python scripts/venue.py event --title "Friday Session" \
+         --start 2026-08-14T20:00:00Z --end 2026-08-14T23:00:00Z \
+         --address "40 Stuart Rd" --city London --venue-name "The Ivy House" \
+         --link "https://dice.fm/…|tickets"
        python scripts/promote.py publish <record-id> --identity ivyhouse
+
+   Optionally add the cultural layer (who is on):
+
+       python scripts/venue.py lineup --event-uri at://…/community.lexicon.calendar.event/… \
+         --event-cid bafy… --billing "The Bug Club|live"
+       python scripts/promote.py publish <record-id> --identity ivyhouse
+
+   Or use **Doors**, which writes both records from one form.
 
 4. **The audience.** Anyone with a String (or the pocket totem) mints a
    bead with the listing's URI as its subject. The

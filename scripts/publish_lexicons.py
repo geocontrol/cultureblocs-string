@@ -52,7 +52,11 @@ def load_lexicons() -> list[dict]:
     docs = []
     for f in sorted(LEX_DIR.rglob("*.json")):
         doc = json.loads(f.read_text())
-        if doc.get("lexicon") == 1 and "id" in doc:
+        # Only publish schemas this domain is the authority for. Vendored
+        # community lexicons live under lexicons/community/ and belong to
+        # lexicon.community — publishing them here would be a false claim.
+        if doc.get("lexicon") == 1 and str(doc.get("id", "")).startswith(
+                "com.cultureblocs."):
             docs.append(doc)
     if not docs:
         sys.exit(f"no lexicon documents found in {LEX_DIR}")

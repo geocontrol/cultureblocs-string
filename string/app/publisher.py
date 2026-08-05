@@ -105,7 +105,8 @@ def _media_blobs(rec_body: dict, media_dir, pds: str, jwt: str) -> list:
 
 PUBLIC_TYPES = ("com.cultureblocs.creative.profile", "com.cultureblocs.creative.work",
                 "com.cultureblocs.creative.connection", "com.cultureblocs.venue.profile",
-                "com.cultureblocs.venue.listing")
+                "com.cultureblocs.venue.lineup", "com.cultureblocs.venue.listing",
+                "community.lexicon.calendar.event", "community.lexicon.calendar.rsvp")
 
 SELF_KEYED = ("com.cultureblocs.creative.profile", "com.cultureblocs.venue.profile")
 

@@ -24,8 +24,18 @@ COLLECTIONS = [
     "com.cultureblocs.creative.work",
     "com.cultureblocs.creative.connection",
     "com.cultureblocs.venue.profile",
-    "com.cultureblocs.venue.listing",
+    "com.cultureblocs.venue.lineup",
+    "com.cultureblocs.venue.listing",      # deprecated; indexed for old records
+    # Shared schemas of the open social web. Events are published by many
+    # apps (atmo.rsvp, VenueCMS venues, us) and referenced by all of them:
+    # an RSVP says "I'm going", a bead says "I was here". Same event record.
+    "community.lexicon.calendar.event",
+    "community.lexicon.calendar.rsvp",
 ]
+
+EVENT = "community.lexicon.calendar.event"
+RSVP = "community.lexicon.calendar.rsvp"
+LEGACY_LISTING = "com.cultureblocs.venue.listing"
 
 JETSTREAM_HOSTS = [
     "wss://jetstream1.us-east.bsky.network/subscribe",
@@ -58,11 +68,42 @@ def resolve_pds(did: str) -> str:
 
 
 def resolve_handle(handle: str) -> str:
+    """handle -> DID, with fallbacks.
+
+    The public API only answers for handles it can verify bidirectionally.
+    Plenty of real accounts have a domain handle set on the DID side while
+    the domain serves something unhelpful at /.well-known/atproto-did — the
+    account still exists and its records are still public, so fall back to
+    the DNS TXT record and to the well-known file before giving up.
+    """
     if handle.startswith("did:"):
         return handle
-    q = urllib.parse.urlencode({"handle": handle})
-    return _json("https://public.api.bsky.app/xrpc/"
-                 f"com.atproto.identity.resolveHandle?{q}")["did"]
+    handle = handle.lstrip("@").strip()
+    try:
+        q = urllib.parse.urlencode({"handle": handle})
+        return _json("https://public.api.bsky.app/xrpc/"
+                     f"com.atproto.identity.resolveHandle?{q}")["did"]
+    except Exception:
+        pass
+    try:                                    # DNS TXT _atproto.<handle>
+        q = urllib.parse.urlencode({"name": f"_atproto.{handle}", "type": "TXT"})
+        dns = _json(f"https://dns.google/resolve?{q}")
+        for a in dns.get("Answer", []):
+            data = a.get("data", "").strip('"')
+            if data.startswith("did="):
+                return data[4:]
+    except Exception:
+        pass
+    try:                                    # /.well-known/atproto-did
+        with urllib.request.urlopen(
+                f"https://{handle}/.well-known/atproto-did", timeout=15) as r:
+            text = r.read(2048).decode(errors="replace").strip()
+        if text.startswith("did:") and "\n" not in text:
+            return text
+    except Exception:
+        pass
+    raise ValueError(
+        f"could not resolve '{handle}' to a DID — try the did:plc:… directly")
 
 
 def backfill(index, actor: str) -> dict:

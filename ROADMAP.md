@@ -187,48 +187,47 @@ stops there.
 
 The distinguishing bet, and the part no other system has: **the venue
 does not gather the data — the audience publishes it.** A venue puts out
-a listing with a stable URI; attendees' beads reference it if they
-choose; the venue counts *public* references. It never collects, stores
-or processes anything about a person — which is the difference between
-impossible and trivial for a grassroots space with no data protection
-officer. What such venues need evidence for is unglamorous: funding
-applications, licensing and landlord arguments, a record that a night
-happened.
+an event; attendees' beads reference it if they choose; the venue counts
+*public* references. It never collects, stores or processes anything
+about a person — the difference between impossible and trivial for a
+grassroots space with no data protection officer. What such venues need
+evidence for is unglamorous: funding applications, licensing and
+landlord arguments, a record that a night happened.
 
 Stated boundary: **public references are countable; identities are not
 the venue's to collect.**
 
-- [x] **Lexicons**: `venue.profile`, `venue.listing` — thin by design,
-  their job being to exist as something beads can point at. CLI:
-  `scripts/venue.py`. Publishing works under a venue's own held
-  identity.
-- [ ] **A venue app — separate project.** Venues need a different
-  toolkit and a different interface: no Tier 0, no beads, no telling —
-  everything they publish is public by intent. That collapses to a thin
-  client over ATProto plus the AppView (no per-venue server, no
-  database of venues), with five screens: profile, listings, the room
-  (public reference counts), export for funding applications, and a
-  public page. Working name: **Doors**. Brief:
-  `venue-app-brief.md`.
-- [ ] **The bridge that makes audience evidence real**: a QR code per
-  listing that opens the Pocket Totem with the listing pre-loaded, so
-  minting a bead about tonight is one tap. Needs a small Pocket Totem
-  change (`?ref=at://…` → the bead's `subject`). Without this, nobody
-  hand-types an at:// URI at a gig.
+**We do not own the event record.** Nights publish as
+`community.lexicon.calendar.event` (Lexicon Community's shared type), so
+a venue's programme reaches every calendar app that speaks it. An RSVP
+is intent — *I'm going*; a bead is evidence — *I was here*. Two tenses
+pointing at one record, published by different apps. That composition is
+the whole opportunity, and it means our work starts where theirs stops.
+
+- [x] **Adopted the community calendar**: events + RSVPs vendored and
+  validated by the String; `venue.listing` deprecated (kept published so
+  old records resolve); `com.cultureblocs.venue.lineup` added as the
+  layer carrying who is on and works shown.
+- [x] **`venue.profile`** keeps what an event does not carry — capacity
+  and access notes, which funders and licensing ask for — and now points
+  at `community.lexicon.location.*`.
+- [x] **AppView indexes the shared types**, so it works for venues that
+  have never heard of CultureBlocs. Verified against Edition Festival's
+  2026 programme (14 events, published via VenueCMS).
+- [x] **Doors** publishes both records from one form, and its QR codes
+  point at the event.
 - [ ] **Peckham pilot** — two grassroots venues; app hosted by us,
   identity and records theirs. Runbook in
   [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md).
-- [ ] **Calendar interop** — `venue.listing` carries an `event`
-  strongRef so it can point at a general-purpose event record rather
-  than fork one; check the Lexicon Community calendar work before
-  adding any date/recurrence machinery here.
-- [x] **The AppView** — built (`appview/`, :8104): Jetstream consumer
-  plus repo backfill, a structural reference graph, and endpoints that
-  answer "how many people publicly said they were at this".
-  Verification of attestations is computed from closed loops at read
-  time, never stored as a flag. See [APPVIEW.md](APPVIEW.md).
-- [ ] Tier 1 engagement signals (consented, anonymised) only if and
-  when ATProto's permissioned-data layer makes them honest.
+- [ ] **Talk to VenueCMS** (Scott Cazan) and Edition Festival (John
+  Chantler): they own venue data entry and already publish to the
+  network; we add the audience-memory layer that consumes it.
+  Complementary, not competing.
+- [ ] **Join the Lexicon Community conversation** — Discourse and the
+  monthly call. If billing/lineup proves generally useful, propose it
+  upstream rather than keeping our own layer forever.
+- [ ] Tier 1 engagement signals (consented, anonymised) only if and when
+  ATProto's permissioned-data layer makes them honest.
 
 ## 6 · AR (bottom of the list, by design)
 
