@@ -1,0 +1,50 @@
+flowchart TD
+    POSTER["Poster at the door<br/><b>Scan to mint a CultureBloc</b>"]
+    CAM["Any phone camera<br/><i>no app required</i>"]
+    LAND["<b>Landing page</b><br/>doors.host/g/{did}/{rkey}<br/><i>public · no account · no tracking</i>"]
+
+    POSTER --> CAM --> LAND
+
+    subgraph READ ["The page is assembled from public records"]
+        direction LR
+        PLC["plc.directory<br/><i>DID → PDS</i>"]
+        VPDS["Venue's PDS<br/>community.lexicon.calendar.event<br/>com.cultureblocs.venue.lineup<br/>com.cultureblocs.venue.profile"]
+    end
+    LAND -. reads .-> PLC
+    LAND -. reads .-> VPDS
+
+    LAND --> ASK{"Who just scanned?"}
+
+    %% ---------------- persona A ----------------
+    ASK -->|"<b>a.</b> I know what this is<br/>and I have a DID"| A1["Tap <b>Mint a bead about tonight</b>"]
+    A1 --> A2["Pocket Totem opens<br/>?ref=at://…event &label=…"]
+    A2 --> A3["Red <b>tonight</b> chip shows what's attached<br/>choose a mask · tap the matrix"]
+    A3 --> A4["Bead minted on the phone<br/>subject = the event, CID pinned<br/><i>queued locally, works offline</i>"]
+    A4 --> A5{"Where does it live?"}
+    A5 -->|"has a String"| A6["Flushes to their String<br/><i>tell it later at the desk</i>"]
+    A5 -->|"DID but no String"| A7["Sign in with ATProto OAuth<br/>bead written straight to their repo"]
+    A6 --> A8["<b>Deliberate publish</b><br/>bead → their own PDS"]
+    A7 --> A8
+
+    %% ---------------- persona B ----------------
+    ASK -->|"<b>b.</b> What's a CultureBloc?<br/>What's a DID?"| B1["Page answers in one line:<br/><i>your own private note about being here.<br/>It stays on your phone until you publish it.</i>"]
+    B1 --> B2{"Want to keep anything?"}
+    B2 -->|"just curious"| B3["Read about the night and leave<br/><i>nothing asked, nothing tracked</i>"]
+    B2 -->|"yes, but no account"| B4["Keep a note on this phone<br/><i>local only — no sign-up, no wall</i>"]
+    B3 -.-> SITE["cultureblocs.com<br/><i>what this is, if you're curious later</i>"]
+    B4 --> B5["Nothing else happens.<br/>Days later: <b>claim it?</b><br/>make a DID or sign in"]
+    B5 --> A7
+
+    %% ---------------- the shared end ----------------
+    A8 --> AV["<b>AppView</b><br/>indexes public references<br/>RSVP = intent · bead = evidence"]
+    AV --> VEN["Venue sees:<br/><i>4 people were here</i> + their public notes<br/>→ funding evidence, a record of the night"]
+
+    classDef built fill:#EAF0E6,stroke:#2E7A4F,stroke-width:1.5px,color:#16161A
+    classDef todo fill:#FDF3E3,stroke:#C7860F,stroke-width:1.5px,stroke-dasharray:5 4,color:#16161A
+    classDef ext fill:#EDEFF7,stroke:#2B4BC7,stroke-width:1.2px,color:#16161A
+    classDef plain fill:#F6F4EF,stroke:#8A8880,color:#16161A
+
+    class POSTER,CAM,LAND,A1,A2,A3,A4,A6,A8,AV,VEN,B1,B3,SITE built
+    class A7,B4,B5 todo
+    class PLC,VPDS ext
+    class ASK,A5,B2 plain

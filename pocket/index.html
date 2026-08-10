@@ -6,6 +6,7 @@
 <title>Pocket Totem</title>
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="atproto-client" href="https://www.cultureblocs.com/pocket/client-metadata.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{
@@ -63,6 +64,15 @@ footer.queued .q{display:block}
   color:var(--paper);font:13px var(--mono);padding:10px;border-radius:2px}
 #settings textarea{min-height:90px}
 #settings .row{display:flex;gap:10px;justify-content:flex-end}
+#settings .hint,#settings .hint2{color:var(--dim);font:10px var(--mono);
+  letter-spacing:.06em;text-transform:none;line-height:1.6}
+#settings .hint{margin:.6rem 0 0}
+#settings button.ghost{background:none;border:1px solid var(--dim);color:var(--dim)}
+.acct-line{font:12px var(--mono);color:var(--paper);letter-spacing:.08em;
+  padding:4px 0 8px}
+#pub{background:var(--red);color:var(--paper);border:0;border-radius:999px;
+  font:10px var(--mono);letter-spacing:.2em;padding:7px 16px;cursor:pointer;
+  margin-left:10px}
 #settings button{background:var(--paper);color:var(--void);border:0;
   font:11px var(--mono);letter-spacing:.24em;padding:11px 18px;cursor:pointer;
   text-transform:uppercase;border-radius:2px}
@@ -82,11 +92,25 @@ footer.queued .q{display:block}
   <div id="masks" role="radiogroup" aria-label="mask"></div>
   <input id="note" placeholder="SAY SOMETHING · OPTIONAL" autocomplete="off" maxlength="280">
 </main>
-<footer><span class="q"></span><span id="status">READY</span></footer>
+<footer><span class="q"></span><span id="status">READY</span>
+  <button id="pub" hidden>PUBLISH</button></footer>
 
 <div id="settings">
   <div style="letter-spacing:.28em;font-size:10px;color:var(--paper)">SETTINGS</div>
-  <div><label>String URL</label><input id="sUrl" placeholder="http://brick:8100"></div>
+  <div id="acct">
+    <label>Your account</label>
+    <div id="acct-out" class="acct-line">not signed in</div>
+    <div id="acct-in">
+      <input id="sHandle" placeholder="you.bsky.social" autocomplete="username">
+      <button id="sSignin" style="margin-top:8px">Sign in</button>
+    </div>
+    <button id="sSignout" hidden class="ghost">Sign out</button>
+    <p class="hint">Sign in with your own handle and beads publish to
+    <b>your</b> repository — no server of your own required. Minting stays
+    private on this phone until you press publish.</p>
+  </div>
+  <div><label>String URL <span class="hint2">optional — for your own record store</span></label>
+    <input id="sUrl" placeholder="http://brick:8100"></div>
   <div><label>Token (if the String requires one)</label><input id="sTok"></div>
   <div><label>Masks — one per line: NAME | #hex</label>
     <textarea id="sMasks" spellcheck="false"></textarea></div>
@@ -211,7 +235,11 @@ const noteEl = document.getElementById('note');
 function setStatus(){
   const f = document.querySelector('footer');
   f.classList.toggle('queued', queue.length>0);
-  if(queue.length) status.textContent = `${queue.length} QUEUED`;
+  const pub = document.getElementById('pub');
+  if(pub) pub.hidden = !(acct && queue.length);
+  if(queue.length) status.textContent = acct
+    ? `${queue.length} HELD · YOURS TO PUBLISH`
+    : `${queue.length} QUEUED`;
 }
 function uuid(){ return crypto.randomUUID ? crypto.randomUUID()
   : 'xxxx-xxxx-4xxx'.replace(/x/g,()=> (Math.random()*16|0).toString(16)); }
@@ -244,6 +272,9 @@ cv.tabIndex = 0;
 /* ---------- queue flush ---------- */
 let flushing = false;
 async function flush(){
+  // Signed in? Beads wait for a deliberate publish. Publishing is an act,
+  // not a side effect — the same rule the desk tools follow.
+  if(acct){ setStatus(); return; }
   if(flushing || !queue.length) { setStatus(); return; }
   flushing = true;
   try{
@@ -288,6 +319,76 @@ document.getElementById('sSave').onclick = ()=>{
   SV('cfg',cfg); SV('masks',masks); SV('mi',mi);
   renderMasks(); buildDots(); S.classList.remove('open'); flush();
 };
+
+/* ---------- account: publish to your own repo ---------- */
+let OA = null, acct = null;
+async function oauth(){
+  if(!OA) OA = await import('./oauth.js');
+  return OA;
+}
+function renderAcct(){
+  const line = document.getElementById('acct-out');
+  const inbox = document.getElementById('acct-in');
+  const out = document.getElementById('sSignout');
+  if(acct){
+    line.textContent = acct.handle || acct.did;
+    inbox.hidden = true; out.hidden = false;
+  }else{
+    line.textContent = 'not signed in';
+    inbox.hidden = false; out.hidden = true;
+  }
+  setStatus();
+}
+document.getElementById('sSignin').onclick = async ()=>{
+  const h = document.getElementById('sHandle').value.trim();
+  if(!h) return;
+  status.textContent = 'FINDING YOUR ACCOUNT…';
+  try{ const m = await oauth(); await m.startLogin(h); }
+  catch(e){ status.textContent = String(e.message||e).toUpperCase().slice(0,60); }
+};
+document.getElementById('sSignout').onclick = async ()=>{
+  const m = await oauth(); await m.signOut(); acct = null; renderAcct();
+};
+document.getElementById('pub').onclick = async ()=>{
+  if(!acct || !queue.length) return;
+  const btn = document.getElementById('pub');
+  btn.disabled = true; btn.textContent = 'PUBLISHING…';
+  const m = await oauth();
+  let done = 0;
+  try{
+    while(queue.length){
+      const b = queue[0].body;
+      // born public: device internals never leave the phone
+      const rec = {"$type":"com.cultureblocs.bead", createdAt:b.createdAt,
+                   kind:b.kind};
+      if(b.note) rec.note = b.note;
+      if(b.tags) rec.tags = b.tags;
+      if(b.subject) rec.subject = b.subject;
+      await m.createRecord('com.cultureblocs.bead', rec);
+      queue.shift(); SV('q', queue); done++;
+    }
+    status.textContent = `PUBLISHED ${done}`;
+  }catch(e){
+    status.textContent = String(e.message||e).toUpperCase().slice(0,60);
+  }
+  btn.disabled = false; btn.textContent = 'PUBLISH'; setStatus();
+};
+
+(async function initAccount(){
+  const m = await oauth();
+  try{
+    if(m.pendingCallback()){
+      status.textContent = 'SIGNING IN…';
+      acct = await m.completeLogin();
+      status.textContent = 'SIGNED IN';
+    }else{
+      acct = m.session();
+    }
+  }catch(e){
+    status.textContent = String(e.message||e).toUpperCase().slice(0,60);
+  }
+  renderAcct();
+})();
 
 /* ---------- PWA ---------- */
 if('serviceWorker' in navigator && location.protocol==='https:')

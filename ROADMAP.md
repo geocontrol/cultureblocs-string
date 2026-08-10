@@ -91,6 +91,16 @@ pattern; none of them is a feed.
   masks as glyph patterns, particle cloud, no chrome.
 - [ ] **A button, not a feed** — deliberately no timeline on the
   phone; the telling stays a desk ritual.
+- [x] **ATProto OAuth** — sign in with your own handle; beads publish to
+  your own repository with no String to run. PKCE + pushed authorisation
+  + DPoP, with the private key non-extractable in IndexedDB. Deployed at
+  cultureblocs.com/pocket/ because the client id must be a stable URL.
+- [x] **The round trip** — `scripts/import_repo.py` brings
+  born-public beads home to be told, and re-publishing updates the same
+  public record instead of orphaning it.
+- [ ] **Local-only notes** for someone with no account at all: keep it on
+  this phone, claim it later. The missing rung between "scan" and
+  "create a decentralised identity" — see the QR journey diagram.
 - [ ] Native (iOS App Intents / Android) later, when voice (§below)
   or widgets demand it.
 

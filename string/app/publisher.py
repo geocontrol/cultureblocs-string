@@ -71,6 +71,21 @@ def content_hash(obj: dict) -> str:
         json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def _rkey_for(rec: dict, fallback: str) -> str:
+    """Which key to write under.
+
+    A record that already has a published twin keeps that twin's rkey, so
+    re-publishing after an edit updates the public record in place instead
+    of leaving an orphan beside it. This matters for beads that were born
+    on the network — minted on a phone, imported here later — whose rkey
+    was assigned elsewhere and is not our record id.
+    """
+    uri = rec.get("publishedUri")
+    if uri:
+        return uri.rsplit("/", 1)[-1]
+    return fallback
+
+
 def _login(identity: dict) -> tuple[str, str, str]:
     s = _xrpc(identity["pds"], "com.atproto.server.createSession",
               body={"identifier": identity["handle"],
@@ -132,7 +147,8 @@ def publish_record(store, record_id: str, identity: dict) -> dict:
                          "beads and annotations publish as part of a strand")
     did, jwt, pds = _login(identity)
     stripped = strip_public(rec["body"])
-    rkey = "self" if rec["type"] in SELF_KEYED else record_id
+    rkey = ("self" if rec["type"] in SELF_KEYED
+            else _rkey_for(rec, record_id))
     res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
         "repo": did, "collection": rec["type"], "rkey": rkey, "record": stripped})
     store.set_published(record_id, res["uri"], content_hash(stripped))
@@ -170,15 +186,15 @@ def publish_strand(store, strand_id: str, identity: dict,
         blobs = _media_blobs(rec["body"], media_dir, pds, jwt)
         stripped = strip_bead(rec["body"], blobs=blobs)
         res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
-            "repo": did, "collection": rec["type"], "rkey": rid,
-            "record": stripped})
+            "repo": did, "collection": rec["type"],
+            "rkey": _rkey_for(rec, rid), "record": stripped})
         store.set_published(rid, res["uri"], content_hash(stripped))
         item_refs.append({"uri": res["uri"], "cid": res["cid"]})
         published.append(res["uri"])
     stripped_strand = strip_strand(strand["body"], item_refs)
     res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
-        "repo": did, "collection": STRAND, "rkey": strand_id,
-        "record": stripped_strand})
+        "repo": did, "collection": STRAND,
+        "rkey": _rkey_for(strand, strand_id), "record": stripped_strand})
     store.set_published(strand_id, res["uri"], content_hash(stripped_strand))
     published.append(res["uri"])
     return {"identity": identity["name"], "handle": identity["handle"],

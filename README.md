@@ -56,7 +56,7 @@ Three principles, enforced by architecture rather than policy:
 | :8100 | String API |
 | :8101 | Timeline ("the day's string") |
 | :8102 | CultureBloc Studio |
-| :8103 | Pocket Totem (PWA — phone minting) |
+| :8103 | Pocket Totem (PWA — phone minting; live at cultureblocs.com/pocket/) |
 | :8104 | AppView (network index — public references) |
 
 Open the timeline, load a day, and you have the whole loop minus a totem.
@@ -71,6 +71,13 @@ Open the timeline, load a day, and you have the whole loop minus a totem.
   connect) and `scripts/venue.py` (profile / listing) — self-asserted
   claims and venue listings that beads can point at. See
   [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md).
+- **Pocket Totem** (`pocket/`, also deployed at
+  [cultureblocs.com/pocket](https://www.cultureblocs.com/pocket/)): mask
+  and mint on a phone. Beads queue locally. Two destinations: your String
+  (set a URL), or — signed in with **ATProto OAuth** — your own
+  repository, no server of your own required. Either way publishing is a
+  deliberate press, never a side effect. Scanning a venue's QR attaches
+  that event to what you mint.
 - **By hand**: `python scripts/mint.py --note "..." --kind read`
   — for moments no device witnessed. See `--help` for kinds, tags,
   place, links, and backdating.
@@ -111,6 +118,26 @@ and (release one) media. Full details in [PROMOTER.md](PROMOTER.md).
 Published strands render anywhere via the embed component — live from
 a repo (`<cultureblocs-strands actor="handle">`) or from a baked export
 (`scripts/export_public.py`, see below).
+
+## The round trip: records that were born public
+
+A bead minted on a phone and published to your own repository has no
+private original — it is born public. Bring it home to edit it:
+
+    python scripts/import_repo.py --actor you.bsky.social --dry-run
+    python scripts/import_repo.py --actor you.bsky.social
+
+Imported records keep their public identity (`dedupeKey` is the at:// URI,
+so re-running imports nothing twice) and remember their published twin.
+Annotate them, attach photos, group them into strands, then re-publish:
+because the String reuses the original record key, the public record is
+**updated in place** rather than gaining an orphaned twin.
+
+Two things follow from being born public. There is no richer private
+version to fall back on — what you minted is what the world saw. And
+every later edit is a public amendment, visible in your repository's
+commit history. That is honest, and worth knowing before you edit a note
+someone already read.
 
 ## Static export (photo-capable)
 
