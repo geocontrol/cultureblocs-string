@@ -31,6 +31,19 @@ export function cardModel(record) {
   };
 }
 
+export function safeHref(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return url;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveDid(actor) {
   if (actor.startsWith('did:')) return actor;
   const r = await fetch(`${BSKY}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(actor)}`);
@@ -87,6 +100,7 @@ function css() {
 function renderCard(root, model, imgSrc) {
   const desc = model.description.length > 240
     ? model.description.slice(0, 240) + '…' : model.description;
+  const href = safeHref(model.referenceUrl);
   root.innerHTML = `<style>${css()}</style>
     <article class="card">
       ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(model.imageAlt)}">` : ''}
@@ -94,7 +108,7 @@ function renderCard(root, model, imgSrc) {
         <p class="title">${escapeHtml(model.title)}</p>
         ${model.completionDate ? `<p class="meta">${escapeHtml(model.completionDate)}</p>` : ''}
         ${desc ? `<p class="desc">${escapeHtml(desc)}</p>` : ''}
-        ${model.referenceUrl ? `<a class="ref" href="${encodeURI(model.referenceUrl)}" target="_blank" rel="noopener">View work →</a>` : ''}
+        ${href ? `<a class="ref" href="${encodeURI(href)}" target="_blank" rel="noopener">View work →</a>` : ''}
       </div>
     </article>`;
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { latest, blobUrl, cardModel } from '../cultureblocs-works.js';
+import { latest, blobUrl, cardModel, safeHref } from '../cultureblocs-works.js';
 
 test('latest sorts by createdAt desc and applies limit', () => {
   const recs = [
@@ -41,4 +41,13 @@ test('cardModel extracts display fields and first image cid', () => {
 test('cardModel tolerates a work with no image', () => {
   const m = cardModel({ value: { title: 'text only' } });
   assert.equal(m.imageCid, null);
+});
+
+test('safeHref allows http(s) schemes and rejects dangerous schemes', () => {
+  assert.equal(safeHref('https://example.com/w'), 'https://example.com/w');
+  assert.equal(safeHref('http://example.com'), 'http://example.com');
+  assert.equal(safeHref('javascript:alert(1)'), null);
+  assert.equal(safeHref('ftp://example.com'), null);
+  assert.equal(safeHref(''), null);
+  assert.equal(safeHref(undefined), null);
 });
