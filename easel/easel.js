@@ -4,6 +4,7 @@ import { downscaleDims, renderToBlob } from './lib/image.js';
 import { makeRkey } from './lib/rkey.js';
 import * as oauth from './oauth.js';
 import { publishWork, unpublishWork, publishProfile } from './lib/publish.js';
+import { buildExport, parseImport, planMerge } from './lib/backup.js';
 
 const $ = id => document.getElementById(id);
 let db, current = null;      // current editing work
@@ -144,8 +145,78 @@ async function saveLocal() {
   await renderList();
 }
 
+async function exportLibrary() {
+  const status = $('library-status');
+  try {
+    status.textContent = 'Preparing export…';
+    const works = await store.listWorks(db);
+    if (!works.length) { status.textContent = 'Nothing to export yet.'; return; }
+
+    // Only the images the works actually reference — never stray rows.
+    const wanted = [...new Set(works.flatMap(w => w.imageHashes || []))];
+    const blobs = [];
+    for (const hash of wanted) {
+      const rec = await store.getBlob(db, hash);
+      if (!rec?.blob) continue;
+      blobs.push({
+        hash,
+        mimeType: rec.blob.type,
+        bytes: new Uint8Array(await rec.blob.arrayBuffer()),
+      });
+    }
+
+    const now = new Date();
+    const doc = buildExport(works, blobs, now.toISOString());
+    const file = new Blob([JSON.stringify(doc)], { type: 'application/json' });
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `easel-backup-${now.toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+    const mb = (file.size / 1048576).toFixed(1);
+    status.textContent = `Exported ${works.length} work(s) and ${blobs.length} image(s) — ${mb} MB.`;
+  } catch (e) {
+    status.textContent = 'Export failed: ' + e.message;
+  }
+}
+
+async function importLibrary(file) {
+  const status = $('library-status');
+  try {
+    status.textContent = 'Reading…';
+    const doc = JSON.parse(await file.text());
+    const { works, blobs } = parseImport(doc);
+
+    const existing = (await store.listWorks(db)).map(w => w.id);
+    const { toAdd, skipped } = planMerge(existing, works);
+
+    // Blobs are content-addressed, so writing them all is safe and idempotent.
+    for (const b of blobs) {
+      await store.putBlob(db, b.hash, new Blob([b.bytes], { type: b.mimeType }));
+    }
+    for (const w of toAdd) await store.saveWork(db, w);
+
+    await renderList();
+    status.textContent = `Imported ${toAdd.length} work(s)`
+      + (skipped.length ? `; skipped ${skipped.length} already here.` : '.');
+  } catch (e) {
+    status.textContent = 'Import failed: ' + e.message;
+  }
+}
+
 function wire() {
   $('btn-new').onclick = () => openEditor(null);
+  $('btn-export').onclick = exportLibrary;
+  $('btn-import').onclick = () => $('f-import').click();
+  $('f-import').onchange = async ev => {
+    const file = ev.target.files[0];
+    ev.target.value = '';
+    if (file) await importLibrary(file);
+  };
   $('btn-back').onclick = async () => { show('works'); await renderList(); };
   $('f-files').onchange = onFiles;
   $('btn-save').onclick = saveLocal;

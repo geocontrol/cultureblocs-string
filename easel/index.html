@@ -38,6 +38,9 @@
     <div class="row" style="justify-content:space-between;align-items:center">
       <strong>Your works</strong>
       <div class="row">
+        <button id="btn-export" title="Download every work and image as one JSON file">Export</button>
+        <button id="btn-import" title="Restore works from an exported JSON file">Import</button>
+        <input id="f-import" type="file" accept="application/json,.json" class="hidden">
         <button id="btn-profile">Profile</button>
         <button id="btn-signin">Sign in</button>
         <button id="btn-new" class="primary">＋ New work</button>
@@ -45,6 +48,7 @@
     </div>
     <div id="works" class="grid" style="margin-top:1rem"></div>
     <p id="empty" class="status hidden">No works yet — add your first.</p>
+    <p id="library-status" class="status"></p>
   </section>
 
   <section id="screen-editor" class="hidden">
