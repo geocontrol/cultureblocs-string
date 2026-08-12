@@ -174,34 +174,84 @@ $('spineUrl').value = localStorage.spineUrl || 'http://localhost:8100';
 $('spineToken').value = localStorage.spineToken || '';
 
 // ---------- parse an imported dump / ndjson ----------
+// Two device families feed this, and neither is told apart by a flag — each
+// simply lands in the branch its own data selects:
+//   asserted  the Cardputer fieldnote: a human typed the time. `t` carries a
+//             full local datetime ("2026-08-07T19:42") + `tp` precision.
+//   resolved  the StickS3: no clock, an elapsed counter `e` back-computed
+//             against the wall clock at sync. Also the Cardputer's fallback
+//             when the time prompt was skipped — which is why the Cardputer
+//             keeps emitting `e`/`ep` even when it has a typed time.
+//   ordered   an older power session: ordering known, wall clock is not.
+//   timeOfDay legacy t-beads: HH:MM:SS with no date.
+// Lines are skipped unless they are beads: `k` marks page headers, strike
+// records and anything the firmware grows later.
 function parseBeads(text, deviceNow, syncNow, dumpEpoch){
   const out = [];
+  const struck = new Set();                        // {"k":"strike","seq":n} — crossings-out
   text.split('\n').forEach(line=>{
     line = line.trim();
     if(!line.startsWith('{')) return;              // skip markers, logs, blanks
     try{
       const o = JSON.parse(line);
+      if(o.k === 'strike'){ if(o.seq != null) struck.add(o.seq); return; }
+      if(o.k && o.k !== 'bead') return;             // page headers & future kinds
       const h = (o.r!=null) ? hex(o.r,o.g,o.b) : (o.hex || '#888');
-      let t, iso = null, anchored;
-      if (o.e !== undefined && deviceNow !== null) {
+      let t, iso = null, anchored, timeSource, tp = null;
+      // An assertion is a DATE-shaped `t` — the notebook page was dated. A bare
+      // HH:MM:SS is legacy time-of-day. Pad partials so Date never sees "…T14",
+      // which parses as NaN.
+      let asserted = null, aPrec = o.tp || null;
+      if (typeof o.t === 'string' && /^\d{4}-\d{2}-\d{2}/.test(o.t)) {
+        asserted = o.t;
+        if (!asserted.includes('T'))        { asserted += 'T00:00'; aPrec = aPrec || 'd'; }
+        else if (/T\d{2}$/.test(asserted))  { asserted += ':00';    aPrec = aPrec || 'h'; }
+      }
+      const canResolve = (o.e !== undefined && deviceNow !== null);
+      // A coarse assertion ("sometime that afternoon") should NOT outrank a live
+      // elapsed counter, which is more precise. Fine assertions win; coarse ones
+      // are the fallback when there is no counter to resolve against.
+      const fine = !aPrec || aPrec === 'm' || aPrec === 's';
+      if (asserted && (fine || !canResolve)) {
+        if (aPrec === 'd') {
+          // UTC midnight, matching the existing coarse cases — local midnight
+          // under BST would silently move the bead to the previous date
+          iso = `${asserted.slice(0,10)}T00:00:00.000Z`;
+        } else {
+          const d = new Date(asserted);            // no 'Z' -> parsed as LOCAL, as intended
+          iso = isNaN(d) ? null : d.toISOString();
+        }
+        tp = aPrec;
+        t = (aPrec === 'd') ? '?' : asserted.slice(11,16);   // display HH:MM
+        // anchored only at minute precision or better: "sometime that afternoon"
+        // is an honest claim about a date, not an instant
+        anchored = !!iso && fine;
+        timeSource = 'asserted';
+      } else if (canResolve) {
         // epoch rule: a bead resolves only within the power session that dumped it
         anchored = (o.ep === undefined || dumpEpoch == null) ? true : (o.ep === dumpEpoch);
         if (anchored) {
           const d = new Date(syncNow - (deviceNow - o.e) * 1000); // elapsed -> wall clock
           t = d.toTimeString().slice(0,8);                        // HH:MM:SS (local, display)
           iso = d.toISOString();                                  // true instant (UTC) — for the Spine
+          timeSource = 'resolved';
         } else {
           t = '—';   // earlier power session: order known, wall-clock not anchorable
+          timeSource = 'ordered';
         }
       } else {
         t = o.t || '?'; anchored = false;          // legacy t-beads: time-of-day only
+        timeSource = o.t ? 'timeOfDay' : 'unknown';
       }
       out.push({ seq: o.seq ?? out.length+1, mask: o.mask || 'unknown', hex: h,
-                 t, iso, mintId: o.mintId || null, ep: o.ep,
-                 timeAnchored: anchored, note: o.note || '', keep: o.keep !== false,
+                 t, iso, tp, timeSource, mintId: o.mintId || null, ep: o.ep,
+                 timeAnchored: anchored, note: o.note || '',
+                 keep: o.keep !== false && o.struck !== true,
                  peer: o.with || null });
     }catch(e){}
   });
+  // a crossing-out defaults the bead to "let go" — visible, still yours, not kept
+  if(struck.size) out.forEach(b=>{ if(struck.has(b.seq)) b.keep = false; });
   return out;
 }
 
@@ -210,6 +260,10 @@ function ingest(text){
   const deviceNow = nm ? parseInt(nm[1]) : null;   // device counter at sync
   const em = text.match(/EPOCH (\d+)/);
   const dumpEpoch = em ? parseInt(em[1]) : null;   // current power-session epoch
+  // the dump names its own device — adopt it, so dedupe keys can't silently
+  // collide across two totems because the box still said "bloc-1"
+  const dv = text.match(/---DEVICE\s+([^\s-]+)/);
+  if(dv) $('edevice').value = dv[1];
   const syncNow = Date.now();                       // wall-clock of this pull = the anchor
   const parsed = parseBeads(text, deviceNow, syncNow, dumpEpoch);
   if(!parsed.length){ alert('No beads found. Paste the block including the {…} lines.'); return; }
@@ -240,17 +294,20 @@ $('import').onclick = ()=> ingest($('paste').value);
       w.releaseLock();
       const reader = port.readable.getReader();
       const dec = new TextDecoder(); let buf=''; const t0=Date.now();
-      while(Date.now()-t0 < 5000){
+      // 20s, not 5: an NVS walk returns instantly, a day of SD-backed fieldnotes
+      // does not. Wait for BOTH terminators rather than assuming an arrival order.
+      while(Date.now()-t0 < 20000){
         const {value,done} = await reader.read();
         if(done) break;
         buf += dec.decode(value);
-        if(buf.includes('---MASKS-DUMP-END---')) break;   // masks come last, so this = both done
+        if(buf.includes('---BEADS-END---') && buf.includes('---MASKS-DUMP-END---')) break;
       }
       reader.releaseLock(); await port.close();
       // split the two responses so mask JSON never gets parsed as beads
       const beadSec = section(buf, '---BEADS-BEGIN---', '---BEADS-END---');
       const maskSec = section(buf, '---MASKS-DUMP-BEGIN---', '---MASKS-DUMP-END---');
       applyDeviceMasks(maskSec);           // adopt the device's real wardrobe first
+      if(maskSec) armMaskPush();           // only now is it safe to push back
       ingest(beadSec || buf);              // then the beads (fallback to whole buf for old firmware)
     }catch(e){ $('pullnote').textContent = 'Pull failed: '+e.message; }
   };
@@ -274,11 +331,23 @@ function applyDeviceMasks(text){
 
 
 // ---------- push wardrobe to device (Web Serial) ----------
+// `M` sets the wardrobe wholesale. That was safe while Studio was the only place
+// masks were made; a Cardputer can make them too, so a push without a prior pull
+// would quietly delete a mask created in the field. Pull first, then push.
 function hexToRgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+function armMaskPush(){
+  const btn = document.getElementById('pushMasks'); if(!btn) return;
+  if(!('serial' in navigator)) return;
+  btn.disabled = false;
+  document.getElementById('pushnote').textContent = 'device wardrobe adopted — safe to push';
+}
 (function(){
   const btn = document.getElementById('pushMasks'); if(!btn) return;
   if(!('serial' in navigator)){ btn.disabled = true;
     document.getElementById('pushnote').textContent = 'needs Chrome/Edge on localhost'; return; }
+  btn.disabled = true;                 // armed by a successful pull
+  document.getElementById('pushnote').textContent =
+    'pull from the device first — pushing would overwrite masks made in the field';
   btn.onclick = async ()=>{
     try{
       const port = await navigator.serial.requestPort();
@@ -352,16 +421,24 @@ function renderTally(){
 }
 
 // ---------- export ----------
-function fullT(b){ const d=$('edate').value; return b.t==='?' ? d : `${d}T${b.t}`; }
+function fullT(b){
+  if(b.iso) return b.iso;                          // asserted or resolved: already an instant
+  const d=$('edate').value; return b.t==='?' ? d : `${d}T${b.t}`;
+}
 function download(name,text,type){
   const u=URL.createObjectURL(new Blob([text],{type})); const a=document.createElement('a');
   a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); hasExported = true;
 }
 $('expJson').onclick = ()=>{
   const d=$('edate').value, ev=$('ename').value.trim();
+  // kind/peerDeviceId are what bridge/culturebloc_bridge.py reads (KIND_MAP);
+  // hardcoding "solo" here threw the encounter away on export.
   const lines = beads.filter(b=>b.keep).map(b=>JSON.stringify({
-    v:1, kind:"solo", date:d, event:ev||null,
-    t: fullT(b), time_known: b.t!=='?', mask:b.mask, note:b.note.trim()
+    v:1, kind: b.peer ? "mutual" : "solo", date:d, event:ev||null,
+    t: fullT(b), time_known: b.t!=='?', time_source: b.timeSource,
+    mask:b.mask, note:b.note.trim(),
+    ...(b.mintId ? { mintId: b.mintId } : {}),
+    ...(b.peer ? { peerDeviceId: b.peer.id, peerMask: b.peer.mask } : {})
   }));
   download(`culturebloc-${d}.encounters.json`, lines.join('\n'), 'application/x-ndjson');
 };
@@ -382,6 +459,10 @@ $('expMd').onclick = ()=>{
 //   kind solo -> visit, peer -> encounter; mask -> tags[0];
 //   event name -> subject.name (placeRef).
 // Timestamps, best available truth first:
+//   0. asserted beads (Cardputer fieldnote): the page was dated and the time
+//      typed, so the bead already carries a full local datetime — resolved to
+//      a UTC instant at ingest. timeAnchored:true unless precision was 'd'.
+//      Human-asserted rather than machine-resolved; provenance.timeSource says which.
 //   1. current-epoch elapsed beads: resolved to a true UTC instant at ingest —
 //      date picker ignored (a bead pressed before midnight keeps its true date)
 //   2. old-epoch beads (minted before a power loss): wall clock is honestly
@@ -414,14 +495,24 @@ function toRecord(b){
     provenance: { app: "culturebloc", device, mintedAt: createdAt,
                   mutualMint: !!b.peer, timeAnchored: !!b.timeAnchored }
   };
+  // timeAnchored alone conflates "we know the instant" with "a machine vouches
+  // for it". timeSource separates them. Not yet in defs#provenance — the String
+  // tolerates unknown fields for forward compat (app/lexicon.py), so this is
+  // safe to send today and worth adding to the lexicon next.
+  if (b.timeSource) body.provenance.timeSource = b.timeSource;
+  if (b.tp) body.provenance.timePrecision = b.tp;
   if (b.mintId) body.provenance.mintId = b.mintId;
   if (ev) body.subject = { name: ev };
   const noteBits = [b.note.trim()];
   if (b.peer) noteBits.push(`mutual mint with ${b.peer.mask} · ${b.peer.id}`);
   const note = noteBits.filter(Boolean).join(' — ');
   if (note) body.note = note;
+  // BREAKING for solo beads: `ep` is new in the composite. A device that power
+  // cycles mid-day (the Cardputer has a real off switch) restarts `seq`, and the
+  // old key would collide. Re-ingesting a pre-patch dump will now create
+  // duplicates rather than dedupe — cheap to accept while the corpus is small.
   return { dedupeKey: b.mintId ? `cb:${b.mintId}`
-                               : `cb:${device}:${createdAt.slice(0,10)}:${b.seq}:${b.t}`,
+                               : `cb:${device}:${createdAt.slice(0,10)}:${b.ep ?? 0}:${b.seq}:${b.t}`,
            type: "com.cultureblocs.bead", sourceApp: "culturebloc-studio",
            createdAt, body };
 }
