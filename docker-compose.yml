@@ -31,6 +31,13 @@ services:
       - ./pocket:/usr/share/nginx/html:ro
     restart: unless-stopped
 
+  easel:
+    image: nginx:alpine
+    ports: ["8105:80"]
+    volumes:
+      - ./easel:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
   timeline:
     image: nginx:alpine
     ports: ["8101:80"]

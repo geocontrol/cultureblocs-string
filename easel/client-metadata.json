@@ -1,0 +1,12 @@
+{
+  "client_id": "https://www.cultureblocs.com/easel/client-metadata.json",
+  "client_name": "CultureBlocs Easel",
+  "client_uri": "https://www.cultureblocs.com/easel/",
+  "redirect_uris": ["https://www.cultureblocs.com/easel/"],
+  "scope": "atproto transition:generic",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "application_type": "web",
+  "dpop_bound_access_tokens": true
+}
