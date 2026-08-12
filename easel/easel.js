@@ -1,7 +1,9 @@
 import * as store from './lib/store.js';
-import { assembleWork, isDrifted } from './lib/records.js';
+import { assembleWork, assembleProfile, isDrifted } from './lib/records.js';
 import { downscaleDims, renderToBlob } from './lib/image.js';
 import { makeRkey } from './lib/rkey.js';
+import * as oauth from './oauth.js';
+import { publishWork, unpublishWork, publishProfile } from './lib/publish.js';
 
 const $ = id => document.getElementById(id);
 let db, current = null;      // current editing work
@@ -9,8 +11,32 @@ let pendingImages = [];      // {hash, blob, alt} staged in the editor
 
 async function boot() {
   db = await store.openDb();
+  // Only call completeLogin when we are actually returning from the auth
+  // server — it throws ("no sign-in was in progress") on an ordinary load.
+  if (oauth.pendingCallback()) {
+    try { await oauth.completeLogin(); }
+    catch (e) { console.warn('sign-in did not complete:', e.message); }
+  }
+  refreshWho();
   wire();
   await renderList();
+}
+
+function refreshWho() {
+  const s = oauth.session();
+  $('who').textContent = s?.did ? `signed in: ${s.handle || s.did}` : 'not signed in';
+}
+
+// A publish client for lib/publish.js: {did, pds, fetch}. Redirects to sign-in
+// when there is no session, in which case it never returns.
+async function requireClient() {
+  const s = oauth.session();
+  if (!s?.did) {
+    const h = prompt('Your handle (e.g. geocontrol.bsky.social):');
+    if (h) await oauth.startLogin(h);
+    throw new Error('redirecting to sign in');
+  }
+  return { did: s.did, pds: s.pds, handle: s.handle, fetch: oauth.authedFetch };
 }
 
 function show(screen) {
@@ -120,10 +146,60 @@ function wire() {
   $('f-files').onchange = onFiles;
   $('btn-save').onclick = saveLocal;
   $('btn-delete').onclick = async () => { if (current?.id) await store.deleteWork(db, current.id); show('works'); await renderList(); };
-  $('btn-signin').onclick = () => alert('Sign in — added in Task 9');
-  $('btn-publish').onclick = () => alert('Publish — added in Task 9');
-  $('btn-unpublish').onclick = () => alert('Unpublish — added in Task 9');
-  $('btn-profile').onclick = () => alert('Profile — added in Task 9');
+  $('btn-signin').onclick = async () => {
+    const s = oauth.session();
+    if (s?.did) { await oauth.signOut(); refreshWho(); return; }
+    const h = prompt('Your handle (e.g. geocontrol.bsky.social):');
+    if (h) await oauth.startLogin(h);
+  };
+
+  $('btn-publish').onclick = async () => {
+    try {
+      const client = await requireClient();
+      if (!current?.body?.title) { $('editor-status').textContent = 'Save the work first.'; return; }
+      if (!confirm(`Publish "${current.body.title}" to ${client.handle || client.did}? This is public.`)) return;
+      $('editor-status').textContent = 'Publishing…';
+      const res = await publishWork(client, client.did, current,
+        h => store.getBlob(db, h).then(r => r?.blob));
+      current.state = 'published';
+      current.publishedUri = res.uri; current.publishedCid = res.cid;
+      current.publishedCanonical = res.canonical; current.publishedImages = res.imageBlobRefs;
+      current.updatedAt = new Date().toISOString();
+      await store.saveWork(db, current);
+      $('btn-unpublish').classList.remove('hidden');
+      $('editor-status').textContent = 'Published.';
+      await renderList();
+    } catch (e) { $('editor-status').textContent = 'Publish failed: ' + e.message; }
+  };
+
+  $('btn-unpublish').onclick = async () => {
+    try {
+      const client = await requireClient();
+      if (!confirm('Delete the public record? Your local copy stays.')) return;
+      await unpublishWork(client, client.did, current);
+      current.state = 'draft';
+      delete current.publishedUri; delete current.publishedCid;
+      delete current.publishedCanonical; delete current.publishedImages;
+      current.updatedAt = new Date().toISOString();
+      await store.saveWork(db, current);
+      $('btn-unpublish').classList.add('hidden');
+      $('editor-status').textContent = 'Unpublished.';
+      await renderList();
+    } catch (e) { $('editor-status').textContent = 'Unpublish failed: ' + e.message; }
+  };
+
+  $('btn-profile').onclick = async () => {
+    try {
+      const client = await requireClient();
+      const name = prompt('Display name:'); if (!name) return;
+      const bio = prompt('Bio (optional):') || '';
+      const disciplines = (prompt('Disciplines, comma separated (optional):') || '')
+        .split(',').map(x => x.trim()).filter(Boolean);
+      const body = assembleProfile({ name, bio, disciplines, createdAt: new Date().toISOString() });
+      await publishProfile(client, client.did, body);
+      alert('Profile published.');
+    } catch (e) { alert('Profile publish failed: ' + e.message); }
+  };
 }
 
 boot();
