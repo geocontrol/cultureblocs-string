@@ -67,6 +67,16 @@
               "maxGraphemes": 64
             }
           },
+          "images": {
+            "type": "array",
+            "maxLength": 10,
+            "items": {
+              "type": "blob",
+              "accept": ["image/*"],
+              "maxSize": 2000000
+            },
+            "description": "The work itself, as published ATProto blobs (small / optionally watermarked). For image-based works this is the work, not metadata. Full-resolution originals need not leave the creator's machine."
+          },
           "createdAt": {
             "type": "string",
             "format": "datetime",
