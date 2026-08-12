@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Easel — CultureBlocs</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{--ink:#141414;--line:#e5e5e5;--accent:#b5482e;--mute:#666}
+  *{box-sizing:border-box}
+  body{font:16px/1.5 system-ui,sans-serif;color:var(--ink);margin:0;max-width:760px;padding:1.25rem;margin-inline:auto}
+  header{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem}
+  h1{font-size:1.15rem;margin:0}
+  button{font:inherit;padding:.5rem .8rem;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .hidden{display:none}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem}
+  .work{border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer}
+  .work img{width:100%;height:140px;object-fit:cover;background:#f4f4f4}
+  .work .m{padding:.5rem .6rem}
+  .chip{font-size:.72rem;padding:.1rem .4rem;border-radius:99px;border:1px solid var(--line)}
+  .chip.published{color:#177245} .chip.edited{color:#b5482e} .chip.draft{color:var(--mute)}
+  label{display:block;font-size:.85rem;color:var(--mute);margin:.75rem 0 .2rem}
+  input,textarea{width:100%;font:inherit;padding:.5rem;border:1px solid var(--line);border-radius:8px}
+  .row{display:flex;gap:.5rem}
+  .thumbs{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+  .thumbs img{width:88px;height:88px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+  .status{font-size:.85rem;color:var(--mute)}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Easel</h1>
+    <div id="who" class="status">not signed in</div>
+  </header>
+
+  <section id="screen-works">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <strong>Your works</strong>
+      <div class="row">
+        <button id="btn-profile">Profile</button>
+        <button id="btn-signin">Sign in</button>
+        <button id="btn-new" class="primary">＋ New work</button>
+      </div>
+    </div>
+    <div id="works" class="grid" style="margin-top:1rem"></div>
+    <p id="empty" class="status hidden">No works yet — add your first.</p>
+  </section>
+
+  <section id="screen-editor" class="hidden">
+    <button id="btn-back">← Back</button>
+    <label>Title *</label><input id="f-title" maxlength="300">
+    <label>Description</label><textarea id="f-desc" rows="4" maxlength="2000"></textarea>
+    <label>Completion date</label><input id="f-date" placeholder="2024 / Spring 2019 / ongoing">
+    <label>Definitive URL</label><input id="f-ref" type="url" placeholder="https://…">
+    <label>Additional links (one URL per line, optional 'title | url')</label>
+    <textarea id="f-links" rows="3" placeholder="press | https://…"></textarea>
+    <label>Tags (comma separated)</label><input id="f-tags">
+    <label>Images</label>
+    <div class="row"><input id="f-files" type="file" accept="image/*" multiple>
+      <label class="status"><input type="checkbox" id="f-watermark"> watermark</label></div>
+    <div id="thumbs" class="thumbs"></div>
+    <div class="row" style="margin-top:1rem">
+      <button id="btn-save" class="primary">Save (local)</button>
+      <button id="btn-publish">Publish…</button>
+      <button id="btn-unpublish" class="hidden">Unpublish</button>
+      <button id="btn-delete">Delete</button>
+    </div>
+    <p id="editor-status" class="status"></p>
+  </section>
+
+  <script type="module" src="easel.js"></script>
+</body>
+</html>
