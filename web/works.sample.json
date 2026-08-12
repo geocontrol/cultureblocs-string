@@ -1,0 +1,16 @@
+{
+  "$type": "com.cultureblocs.works.export",
+  "works": [
+    {
+      "value": {
+        "$type": "com.cultureblocs.creative.work",
+        "title": "Fixture Work",
+        "description": "A baked sample used to verify the embed renders before any work is published.",
+        "completionDate": "2026",
+        "referenceUrl": "https://www.cultureblocs.com/",
+        "createdAt": "2026-08-12T09:00:00Z",
+        "imageUrl": "https://placehold.co/520x360/png"
+      }
+    }
+  ]
+}
