@@ -35,6 +35,26 @@ export const getBlob    = (db, h)    => tx(db, 'blobs',  'readonly',  s => s.get
 export const setSession = (db, k, v) => tx(db, 'session','readwrite', s => s.put({ k, v }));
 export const getSession = (db, k)    => tx(db, 'session','readonly',  s => s.get(k));
 
+/* Blobs are content-addressed, so one row can back several works. Rather than
+ * keep refcounts — which drift the moment a write is interrupted — derive the
+ * live set from the works themselves and sweep whatever no longer appears.
+ * Pure, so it is unit-tested; pruneOrphanBlobs applies it to the stores. */
+export function orphanedHashes(works, storedHashes) {
+  const live = new Set();
+  for (const w of works) for (const h of (w?.imageHashes || [])) live.add(h);
+  return storedHashes.filter(h => !live.has(h));
+}
+
+/* Delete blob rows no surviving work references. Call after removing a work
+ * (or after dropping images from one). Returns the hashes it swept. */
+export async function pruneOrphanBlobs(db) {
+  const works = await listWorks(db);
+  const stored = await tx(db, 'blobs', 'readonly', s => s.getAllKeys());
+  const orphans = orphanedHashes(works, stored || []);
+  for (const h of orphans) await tx(db, 'blobs', 'readwrite', s => s.delete(h));
+  return orphans;
+}
+
 // sha256 hex of a Blob (content addressing for dedupe).
 export async function hashBlob(blob) {
   const buf = await blob.arrayBuffer();

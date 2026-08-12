@@ -145,7 +145,16 @@ function wire() {
   $('btn-back').onclick = async () => { show('works'); await renderList(); };
   $('f-files').onchange = onFiles;
   $('btn-save').onclick = saveLocal;
-  $('btn-delete').onclick = async () => { if (current?.id) await store.deleteWork(db, current.id); show('works'); await renderList(); };
+  $('btn-delete').onclick = async () => {
+    if (current?.id) {
+      await store.deleteWork(db, current.id);
+      // The work is gone; sweep any image blob nothing references any more,
+      // or local storage grows forever. Shared blobs survive the sweep.
+      await store.pruneOrphanBlobs(db);
+    }
+    show('works');
+    await renderList();
+  };
   $('btn-signin').onclick = async () => {
     const s = oauth.session();
     if (s?.did) { await oauth.signOut(); refreshWho(); return; }
