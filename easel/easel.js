@@ -24,7 +24,11 @@ async function boot() {
 
 function refreshWho() {
   const s = oauth.session();
-  $('who').textContent = s?.did ? `signed in: ${s.handle || s.did}` : 'not signed in';
+  const signedIn = !!s?.did;
+  $('who').textContent = signedIn ? `signed in: ${s.handle || s.did}` : 'not signed in';
+  // The one button toggles, so its label has to follow the session — otherwise
+  // it reads "Sign in" while actually signing you out.
+  $('btn-signin').textContent = signedIn ? 'Sign out' : 'Sign in';
 }
 
 // A publish client for lib/publish.js: {did, pds, fetch}. Redirects to sign-in
