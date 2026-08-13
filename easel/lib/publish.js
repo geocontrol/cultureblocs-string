@@ -44,6 +44,34 @@ export async function unpublishWork(client, did, work) {
   });
 }
 
+/* ---------- reading back ----------
+ * listRecords and getBlob are public, so these are plain GETs — no token, no
+ * DPoP. Sign-in is still required upstream, but only to know whose repo to read. */
+
+export async function fetchPublishedWorks(pds, did) {
+  const out = [];
+  let cursor = '';
+  do {
+    const url = `${pds}/xrpc/com.atproto.repo.listRecords`
+      + `?repo=${encodeURIComponent(did)}`
+      + `&collection=com.cultureblocs.creative.work&limit=100`
+      + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`listRecords failed: ${r.status}`);
+    const page = await r.json();
+    out.push(...(page.records || []));
+    cursor = page.cursor || '';
+  } while (cursor);
+  return out;
+}
+
+export async function fetchBlob(pds, did, cid) {
+  const r = await fetch(`${pds}/xrpc/com.atproto.sync.getBlob`
+    + `?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(cid)}`);
+  if (!r.ok) throw new Error(`getBlob ${cid} failed: ${r.status}`);
+  return r.blob();
+}
+
 export async function publishProfile(client, did, profileBody) {
   const res = await xrpc(client, 'com.atproto.repo.putRecord', {
     repo: did, collection: 'com.cultureblocs.creative.profile', rkey: 'self', record: profileBody,

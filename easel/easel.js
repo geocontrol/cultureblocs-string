@@ -3,8 +3,9 @@ import { assembleWork, assembleProfile, isDrifted } from './lib/records.js';
 import { downscaleDims, renderToBlob } from './lib/image.js';
 import { makeRkey } from './lib/rkey.js';
 import * as oauth from './oauth.js';
-import { publishWork, unpublishWork, publishProfile } from './lib/publish.js';
+import { publishWork, unpublishWork, publishProfile, fetchPublishedWorks, fetchBlob } from './lib/publish.js';
 import { buildExport, parseImport, planMerge } from './lib/backup.js';
+import { workFromRecord, rkeyFromUri } from './lib/records.js';
 
 const $ = id => document.getElementById(id);
 let db, current = null;      // current editing work
@@ -145,6 +146,56 @@ async function saveLocal() {
   await renderList();
 }
 
+/* Pull works already published to this account's repo into the local library.
+ * Deliberate, never automatic on sign-in: it writes to local storage, and the
+ * result should not surprise anyone. Works already here are skipped, so local
+ * edits — published or not — are never overwritten. */
+async function restoreFromRepo() {
+  const status = $('library-status');
+  try {
+    const s = oauth.session();
+    if (!s?.did) { status.textContent = 'Sign in first — Easel needs to know whose repo to read.'; return; }
+
+    status.textContent = 'Looking for published works…';
+    const records = await fetchPublishedWorks(s.pds, s.did);
+    if (!records.length) { status.textContent = 'No published works found in your repo.'; return; }
+
+    const existing = (await store.listWorks(db)).map(w => w.id);
+    const fresh = records.filter(r => !existing.includes(rkeyFromUri(r.uri)));
+    const skipped = records.length - fresh.length;
+    if (!fresh.length) {
+      status.textContent = `Nothing to restore — all ${records.length} published work(s) are already here.`;
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let restored = 0, imagesMissing = 0;
+    for (const rec of fresh) {
+      status.textContent = `Restoring ${restored + 1} of ${fresh.length}…`;
+      const hashes = [];
+      for (const img of (rec.value?.images || [])) {
+        const cid = img?.ref?.$link || img?.cid;
+        if (!cid) continue;
+        try {
+          const blob = await fetchBlob(s.pds, s.did, cid);
+          const hash = await store.hashBlob(blob);
+          await store.putBlob(db, hash, blob);
+          hashes.push(hash);
+        } catch (e) { imagesMissing++; }   // keep the work; it just lacks that image
+      }
+      await store.saveWork(db, workFromRecord(rec, hashes, now));
+      restored++;
+    }
+
+    await renderList();
+    status.textContent = `Restored ${restored} work(s)`
+      + (skipped ? `; skipped ${skipped} already here` : '')
+      + (imagesMissing ? `; ${imagesMissing} image(s) could not be fetched` : '') + '.';
+  } catch (e) {
+    status.textContent = 'Restore failed: ' + e.message;
+  }
+}
+
 async function exportLibrary() {
   const status = $('library-status');
   try {
@@ -210,6 +261,7 @@ async function importLibrary(file) {
 
 function wire() {
   $('btn-new').onclick = () => openEditor(null);
+  $('btn-restore').onclick = restoreFromRepo;
   $('btn-export').onclick = exportLibrary;
   $('btn-import').onclick = () => $('f-import').click();
   $('f-import').onchange = async ev => {

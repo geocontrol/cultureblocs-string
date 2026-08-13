@@ -7,7 +7,7 @@
  * always wins, so a deploy takes effect on the next load.
  *
  * Bump CACHE on any shell change; activate deletes every other cache. */
-const CACHE = 'easel-3';
+const CACHE = 'easel-4';
 const SHELL = ['./', './index.html', './easel.js', './oauth.js',
   './lib/store.js','./lib/records.js','./lib/image.js','./lib/rkey.js','./lib/publish.js',
   './lib/backup.js','./manifest.webmanifest'];
