@@ -11,7 +11,8 @@
   body{font:16px/1.5 system-ui,sans-serif;color:var(--ink);margin:0;max-width:760px;padding:1.25rem;margin-inline:auto}
   header{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem}
   h1{font-size:1.15rem;margin:0}
-  button{font:inherit;padding:.5rem .8rem;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}
+  /* nowrap keeps a label on one line; the row wraps instead of the button */
+  button{font:inherit;padding:.5rem .8rem;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;white-space:nowrap}
   button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
   .hidden{display:none}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem}
@@ -22,7 +23,9 @@
   .chip.published{color:#177245} .chip.edited{color:#b5482e} .chip.draft{color:var(--mute)}
   label{display:block;font-size:.85rem;color:var(--mute);margin:.75rem 0 .2rem}
   input,textarea{width:100%;font:inherit;padding:.5rem;border:1px solid var(--line);border-radius:8px}
-  .row{display:flex;gap:.5rem}
+  .row{display:flex;gap:.5rem;flex-wrap:wrap}
+  /* library maintenance sits with its own status line, below the works */
+  .library-actions{margin-top:1.5rem;padding-top:.9rem;border-top:1px solid var(--line)}
   .thumbs{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
   .thumbs img{width:88px;height:88px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
   .status{font-size:.85rem;color:var(--mute)}
@@ -38,10 +41,6 @@
     <div class="row" style="justify-content:space-between;align-items:center">
       <strong>Your works</strong>
       <div class="row">
-        <button id="btn-restore" title="Fetch works you have already published from your repo">Restore from repo</button>
-        <button id="btn-export" title="Download every work and image as one JSON file">Export</button>
-        <button id="btn-import" title="Restore works from an exported JSON file">Import</button>
-        <input id="f-import" type="file" accept="application/json,.json" class="hidden">
         <button id="btn-profile">Profile</button>
         <button id="btn-signin">Sign in</button>
         <button id="btn-new" class="primary">＋ New work</button>
@@ -49,6 +48,13 @@
     </div>
     <div id="works" class="grid" style="margin-top:1rem"></div>
     <p id="empty" class="status hidden">No works yet — add your first.</p>
+
+    <div class="row library-actions">
+      <button id="btn-restore" title="Fetch works you have already published from your repo">Restore</button>
+      <button id="btn-export" title="Download every work and image as one JSON file">Export</button>
+      <button id="btn-import" title="Restore works from an exported JSON file">Import</button>
+      <input id="f-import" type="file" accept="application/json,.json" class="hidden">
+    </div>
     <p id="library-status" class="status"></p>
   </section>
 
