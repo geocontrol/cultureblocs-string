@@ -28,15 +28,31 @@ export function toImageRef(blobRef, meta = {}) {
  * Alt text and dimensions are not in `body` — they live in `imageMeta` — so
  * feeding the already-published images back in would hide an alt-only edit and
  * the work would never show as edited. Rebuilding from the published blob refs
- * plus current metadata makes every editable field count. */
+ * plus current metadata makes every editable field count.
+ *
+ * Pairing imageHashes[i] with publishedImages[i] by index assumes the two
+ * arrays stay in the same order. That holds only because imageHashes is
+ * append-only and Easel has no reorder or delete-image UI. If a reorder or
+ * middle-delete feature is ever added, this index pairing will attach
+ * metadata to the wrong image — the fix at that point is to record the hash
+ * order at publish time rather than relying on array position.
+ *
+ * A hash with no matching published entry (an image added since the last
+ * publish) is not dropped: this projection is drift-only — it is compared
+ * against publishedCanonical, never published (publishWork builds its own
+ * images array from real uploads, in publish.js) — so it's safe to emit a
+ * marker that could never appear in a real imageRef. That guarantees the
+ * projection differs from anything previously published, so the new image
+ * shows up as drift instead of vanishing. */
 export function projectImages(work) {
   const published = work.publishedImages || [];
   return (work.imageHashes || []).map((hash, i) => {
     const entry = published[i];
-    if (!entry) return null;
+    const meta = (work.imageMeta || {})[hash] || {};
+    if (!entry) return { unpublished: hash };
     const blobRef = entry.image || entry;      // imageRef, or a legacy bare blob
-    return toImageRef(blobRef, (work.imageMeta || {})[hash] || {});
-  }).filter(Boolean);
+    return toImageRef(blobRef, meta);
+  });
 }
 
 export function assembleWork(f, imageBlobRefs = []) {

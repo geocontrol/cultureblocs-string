@@ -125,3 +125,51 @@ test('an alt-only edit is visible as drift', () => {
   assert.equal(isDrifted(publishedCanonical, assembleWork(body, projectImages(altEdited))),
     true, 'an alt-only edit must mark the work edited since publish');
 });
+
+test('an image added since the last publish is visible as drift', () => {
+  const published = [toImageRef(BLOB, { alt: 'first image' })];
+  const body = { title: 'W', createdAt: '2026-08-15T10:00:00Z' };
+  const publishedCanonical = canonicalJSON(assembleWork(body, published));
+
+  const withNewImage = {
+    imageHashes: ['h1', 'h2'],
+    imageMeta: { h1: { alt: 'first image' }, h2: { alt: 'second image' } },
+    publishedImages: published,
+  };
+  assert.equal(
+    isDrifted(publishedCanonical, assembleWork(body, projectImages(withNewImage))),
+    true,
+    'a hash with no matching published entry must not be silently dropped');
+});
+
+test('projectImages reports no drift when nothing has changed', () => {
+  const published = [toImageRef(BLOB, { alt: 'first image' })];
+  const body = { title: 'W', createdAt: '2026-08-15T10:00:00Z' };
+  const publishedCanonical = canonicalJSON(assembleWork(body, published));
+
+  const unchanged = {
+    imageHashes: ['h1'],
+    imageMeta: { h1: { alt: 'first image' } },
+    publishedImages: published,
+  };
+  assert.equal(
+    isDrifted(publishedCanonical, assembleWork(body, projectImages(unchanged))),
+    false,
+    'no edits and no new images — must not read as drifted');
+});
+
+test('projectImages returns only real imageRefs when every hash is published', () => {
+  const work = {
+    imageHashes: ['hash1'],
+    imageMeta: { hash1: { alt: 'edited alt', width: 4, height: 3 } },
+    publishedImages: [{ image: BLOB, alt: 'original alt' }],
+  };
+  const result = projectImages(work);
+  assert.equal(result.length, 1);
+  assert.equal('unpublished' in result[0], false);
+  assert.deepEqual(result, [{
+    image: BLOB,
+    alt: 'edited alt',
+    aspectRatio: { width: 4, height: 3 },
+  }]);
+});
