@@ -1,4 +1,4 @@
-import { assembleWork, canonicalJSON } from './records.js';
+import { assembleWork, canonicalJSON, toImageRef } from './records.js';
 
 // `client` is supplied by easel.js from the oauth.js session:
 //   { pds:  string  — the user's PDS base URL,
@@ -24,18 +24,19 @@ async function uploadBlob(client, blob) {
 }
 
 export async function publishWork(client, did, work, loadBlob) {
-  const imageBlobRefs = [];
+  const images = [];
   for (const hash of (work.imageHashes || [])) {
     const blob = await loadBlob(hash);
     if (!blob) continue;
     if (blob.size > 2_000_000) throw new Error('image exceeds 2MB — re-save to downscale');
-    imageBlobRefs.push(await uploadBlob(client, blob));
+    const blobRef = await uploadBlob(client, blob);
+    images.push(toImageRef(blobRef, (work.imageMeta || {})[hash] || {}));
   }
-  const record = assembleWork(work.body, imageBlobRefs);
+  const record = assembleWork(work.body, images);
   const res = await xrpc(client, 'com.atproto.repo.putRecord', {
     repo: did, collection: 'com.cultureblocs.creative.work', rkey: work.id, record,
   });
-  return { uri: res.uri, cid: res.cid, canonical: canonicalJSON(record), imageBlobRefs };
+  return { uri: res.uri, cid: res.cid, canonical: canonicalJSON(record), imageBlobRefs: images };
 }
 
 export async function unpublishWork(client, did, work) {

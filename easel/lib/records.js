@@ -7,6 +7,38 @@ function present(v) {
 }
 function put(obj, key, val) { if (present(val)) obj[key] = val; }
 
+/* Wrap an uploaded blob ref as a com.cultureblocs.defs#imageRef.
+ * `meta` is what the editor captured when the image was staged:
+ * {alt, width, height}. Blank alt is omitted rather than published as "" —
+ * an empty alt is a positive claim that an image is decorative, which is not
+ * the same as never having been asked. */
+export function toImageRef(blobRef, meta = {}) {
+  const ref = { image: blobRef };
+  if (typeof meta.alt === 'string' && meta.alt.trim()) ref.alt = meta.alt.trim();
+  const w = meta.width, h = meta.height;
+  if (Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0) {
+    ref.aspectRatio = { width: w, height: h };
+  }
+  return ref;
+}
+
+/* What this work's images WOULD publish as, right now.
+ *
+ * Drift compares the stored publishedCanonical against assembleWork(body, …).
+ * Alt text and dimensions are not in `body` — they live in `imageMeta` — so
+ * feeding the already-published images back in would hide an alt-only edit and
+ * the work would never show as edited. Rebuilding from the published blob refs
+ * plus current metadata makes every editable field count. */
+export function projectImages(work) {
+  const published = work.publishedImages || [];
+  return (work.imageHashes || []).map((hash, i) => {
+    const entry = published[i];
+    if (!entry) return null;
+    const blobRef = entry.image || entry;      // imageRef, or a legacy bare blob
+    return toImageRef(blobRef, (work.imageMeta || {})[hash] || {});
+  }).filter(Boolean);
+}
+
 export function assembleWork(f, imageBlobRefs = []) {
   const body = { $type: 'com.cultureblocs.creative.work', title: f.title, createdAt: f.createdAt };
   put(body, 'description', f.description);
@@ -73,11 +105,26 @@ export function workFromRecord(record, imageHashes, now) {
     createdAt: v.createdAt,
   };
   const publishedImages = v.images || [];
+  /* Rebuild the editor-side metadata map from what was published, keyed by the
+   * caller's content hashes (same order as publishedImages). A legacy bare-blob
+   * record yields empty metadata rather than failing the restore. */
+  const imageMeta = {};
+  (imageHashes || []).forEach((hash, i) => {
+    const entry = publishedImages[i] || {};
+    const meta = {};
+    if (typeof entry.alt === 'string' && entry.alt) meta.alt = entry.alt;
+    const ar = entry.aspectRatio;
+    if (Number.isInteger(ar?.width) && Number.isInteger(ar?.height)) {
+      meta.width = ar.width; meta.height = ar.height;
+    }
+    imageMeta[hash] = meta;
+  });
   return {
     id: rkeyFromUri(record.uri),
     state: 'published',
     body,
     imageHashes,
+    imageMeta,
     createdAt: v.createdAt,
     updatedAt: now,
     publishedUri: record.uri,
