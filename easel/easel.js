@@ -1,5 +1,5 @@
 import * as store from './lib/store.js';
-import { assembleWork, assembleProfile, isDrifted } from './lib/records.js';
+import { assembleWork, assembleProfile, isDrifted, projectImages } from './lib/records.js';
 import { downscaleDims, renderToBlob } from './lib/image.js';
 import { makeRkey } from './lib/rkey.js';
 import * as oauth from './oauth.js';
@@ -99,7 +99,23 @@ async function renderThumbs() {
   for (const h of hashes) {
     const staged = pendingImages.find(p => p.hash === h);
     const blob = staged ? staged.blob : (await store.getBlob(db, h))?.blob;
-    if (blob) { const img = document.createElement('img'); img.src = URL.createObjectURL(blob); el.appendChild(img); }
+    if (!blob) continue;
+    const meta = staged || (current.imageMeta || {})[h] || {};
+
+    const fig = document.createElement('figure');
+    fig.className = 'thumb';
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(blob);
+    img.alt = '';                       // the editor's own preview is decorative
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'alt-in';
+    input.placeholder = 'Describe this image';
+    input.maxLength = 2000;
+    input.value = meta.alt || '';
+    input.dataset.hash = h;
+    fig.append(img, input);
+    el.appendChild(fig);
   }
 }
 
@@ -117,7 +133,7 @@ async function onFiles(ev) {
     const blob = await renderToBlob(bitmap, dims, { watermark: $('f-watermark').checked ? 'geekyoto.com' : null });
     const hash = await store.hashBlob(blob);
     if (![...(current.imageHashes || []), ...pendingImages.map(p => p.hash)].includes(hash))
-      pendingImages.push({ hash, blob, alt: '' });
+      pendingImages.push({ hash, blob, alt: '', width: dims.width, height: dims.height });
   }
   ev.target.value = '';
   await renderThumbs();
@@ -125,8 +141,23 @@ async function onFiles(ev) {
 
 async function saveLocal() {
   if (!$('f-title').value.trim()) { $('editor-status').textContent = 'Title is required.'; return; }
-  for (const p of pendingImages) { await store.putBlob(db, p.hash, p.blob); current.imageHashes.push(p.hash); }
+  // Alt text lives in the DOM until save; read it back before the inputs go away.
+  const altByHash = {};
+  for (const input of document.querySelectorAll('#thumbs .alt-in')) {
+    altByHash[input.dataset.hash] = input.value.trim();
+  }
+  current.imageMeta = current.imageMeta || {};
+  for (const p of pendingImages) {
+    await store.putBlob(db, p.hash, p.blob);
+    current.imageHashes.push(p.hash);
+    current.imageMeta[p.hash] = { width: p.width, height: p.height };
+  }
   pendingImages = [];
+  for (const hash of current.imageHashes) {
+    const meta = current.imageMeta[hash] || {};
+    if (hash in altByHash) meta.alt = altByHash[hash];
+    current.imageMeta[hash] = meta;
+  }
   current.body = {
     title: $('f-title').value.trim(),
     description: $('f-desc').value.trim(),
@@ -139,7 +170,7 @@ async function saveLocal() {
   current.updatedAt = new Date().toISOString();
   // drift: if published and body changed, mark edited
   if (current.state === 'published' && current.publishedCanonical &&
-      isDrifted(current.publishedCanonical, assembleWork(current.body, current.publishedImages || [])))
+      isDrifted(current.publishedCanonical, assembleWork(current.body, projectImages(current))))
     current.state = 'edited';
   await store.saveWork(db, current);
   $('editor-status').textContent = 'Saved locally.';
@@ -174,7 +205,8 @@ async function restoreFromRepo() {
       status.textContent = `Restoring ${restored + 1} of ${fresh.length}…`;
       const hashes = [];
       for (const img of (rec.value?.images || [])) {
-        const cid = img?.ref?.$link || img?.cid;
+        const blobRef = img?.image || img;          // imageRef, or a legacy bare blob
+        const cid = blobRef?.ref?.$link || blobRef?.cid;
         if (!cid) continue;
         try {
           const blob = await fetchBlob(s.pds, s.did, cid);

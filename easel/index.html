@@ -26,8 +26,10 @@
   .row{display:flex;gap:.5rem;flex-wrap:wrap}
   /* library maintenance sits with its own status line, below the works */
   .library-actions{margin-top:1.5rem;padding-top:.9rem;border-top:1px solid var(--line)}
-  .thumbs{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
-  .thumbs img{width:88px;height:88px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+  .thumbs{display:flex;gap:.75rem;flex-wrap:wrap;margin:.5rem 0}
+  .thumb{margin:0;display:flex;flex-direction:column;gap:.25rem;width:150px}
+  .thumb img{width:150px;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+  .thumb .alt-in{font-size:.8rem;padding:.3rem .4rem}
   .status{font-size:.85rem;color:var(--mute)}
 </style>
 </head>
