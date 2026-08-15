@@ -371,14 +371,26 @@ document.addEventListener('change', async e=>{
   if(e.target.classList.contains('photo-in')&&e.target.files[0]){
     const stopEl=e.target.closest('.stop'), id=stopEl.dataset.id, f=e.target.files[0];
     try{
+      // Dimensions are free here and unavailable to the promoter later, so
+      // capture them now. A failed decode is not a reason to refuse the upload.
+      let aspectRatio=null;
+      try{
+        const bmp=await createImageBitmap(f);
+        if(bmp.width>0&&bmp.height>0) aspectRatio={width:bmp.width,height:bmp.height};
+        bmp.close?.();
+      }catch(_){}
+      const alt=(window.prompt('Describe this image (alt text) — leave blank to skip:','')||'').trim();
       const up=await fetch(cfg.url+'/media',{method:'POST',
         headers:{'Content-Type':f.type||'application/octet-stream',
                  ...(cfg.token?{'Authorization':'Bearer '+cfg.token}:{})},
         body:f});
       if(!up.ok)throw new Error(await up.text());
       const m=await up.json();
+      const entry={uri:m.uri,mime:m.mime};
+      if(alt) entry.alt=alt;
+      if(aspectRatio) entry.aspectRatio=aspectRatio;
       const cur=S.byId[id].body;
-      await patch(id,{media:[...(cur.media||[]),{uri:m.uri,mime:m.mime}]});
+      await patch(id,{media:[...(cur.media||[]),entry]});
       render();
     }catch(err){ alert('upload failed: '+err.message) }
   }
