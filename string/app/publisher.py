@@ -39,9 +39,10 @@ def _xrpc(pds: str, method: str, *, body: dict | None = None,
         return json.loads(raw) if raw else {}
 
 
-def strip_bead(body: dict, *, blobs: list | None = None) -> dict:
+def strip_bead(body: dict, *, images: list | None = None) -> dict:
     """Public subset. Local `media` refs never publish; if the caller has
-    uploaded them as blobs, they arrive as `photos`."""
+    uploaded them, they arrive as `images` — imageRefs carrying the blob plus
+    the alt text and dimensions from the local record."""
     out = {"$type": body["$type"]}
     for k in ("createdAt", "kind", "note", "tags", "links", "work"):
         if k in body:
@@ -49,8 +50,8 @@ def strip_bead(body: dict, *, blobs: list | None = None) -> dict:
     subj = body.get("subject")
     if isinstance(subj, dict) and subj.get("name"):
         out["subject"] = {"name": subj["name"]}
-    if blobs:
-        out["photos"] = blobs
+    if images:
+        out["images"] = images
     return out
 
 
@@ -97,13 +98,31 @@ MIME_BY_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
                ".webp": "image/webp", ".gif": "image/gif", ".heic": "image/heic"}
 
 
-def _media_blobs(rec_body: dict, media_dir, pds: str, jwt: str) -> list:
-    """Upload a record's local media files as blobs; skip anything missing
-    or oversized rather than failing the publish."""
+def _valid_aspect_ratio(ar) -> dict | None:
+    """Only publish dimensions we can trust. A half-specified or non-integer
+    ratio is worse than none: a reader would size a box wrongly and shift the
+    page anyway."""
+    if not isinstance(ar, dict):
+        return None
+    w, h = ar.get("width"), ar.get("height")
+    for v in (w, h):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 1:
+            return None
+    return {"width": w, "height": h}
+
+
+def _image_refs(rec_body: dict, media_dir, pds: str, jwt: str) -> list:
+    """Upload a record's local media files and return them as `imageRef`s.
+
+    Alt text and dimensions are carried across from the local `mediaRef`
+    rather than derived here: the surface that attached the image had a
+    decoded bitmap in hand, and this process has only bytes on disk. Anything
+    missing or oversized is skipped rather than failing the publish.
+    """
     import pathlib
-    blobs = []
+    refs = []
     if media_dir is None:
-        return blobs
+        return refs
     for m in (rec_body.get("media") or []):
         name = (m.get("uri") or "").split("/")[-1]
         path = pathlib.Path(media_dir) / name
@@ -114,8 +133,15 @@ def _media_blobs(rec_body: dict, media_dir, pds: str, jwt: str) -> list:
             continue
         mime = m.get("mime") or MIME_BY_EXT.get(path.suffix.lower(),
                                                 "application/octet-stream")
-        blobs.append(_upload_blob(pds, jwt, data, mime))
-    return blobs
+        ref = {"image": _upload_blob(pds, jwt, data, mime)}
+        alt = m.get("alt")
+        if isinstance(alt, str) and alt.strip():
+            ref["alt"] = alt.strip()
+        ar = _valid_aspect_ratio(m.get("aspectRatio"))
+        if ar:
+            ref["aspectRatio"] = ar
+        refs.append(ref)
+    return refs
 
 
 PUBLIC_TYPES = ("com.cultureblocs.creative.profile", "com.cultureblocs.creative.work",
@@ -183,8 +209,8 @@ def publish_strand(store, strand_id: str, identity: dict,
         rec = store.get(rid)
         if rec is None or rec["type"] not in BEAD_TYPES:
             continue
-        blobs = _media_blobs(rec["body"], media_dir, pds, jwt)
-        stripped = strip_bead(rec["body"], blobs=blobs)
+        images = _image_refs(rec["body"], media_dir, pds, jwt)
+        stripped = strip_bead(rec["body"], images=images)
         res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
             "repo": did, "collection": rec["type"],
             "rkey": _rkey_for(rec, rid), "record": stripped})
