@@ -93,7 +93,39 @@ async function openEditor(id) {
   show('editor');
 }
 
+/* Read the alt text currently typed into the editor's thumbnail inputs,
+ * keyed by content hash. saveLocal and harvestTypedAlt both need this same
+ * DOM read, so it lives in one place. */
+function readAltFromDom() {
+  const altByHash = {};
+  for (const input of document.querySelectorAll('#thumbs .alt-in')) {
+    altByHash[input.dataset.hash] = input.value.trim();
+  }
+  return altByHash;
+}
+
+/* renderThumbs() wipes and rebuilds #thumbs from stored metadata. Anything
+ * the user typed since the last save lives only in the DOM until then, so it
+ * has to be folded back into pendingImages / current.imageMeta before that
+ * wipe — otherwise attaching another file (onFiles calls renderThumbs too)
+ * silently discards it. Hashes not recognised as belonging to the current
+ * work (e.g. leftover DOM from a previously open work) are ignored. */
+function harvestTypedAlt() {
+  const altByHash = readAltFromDom();
+  for (const p of pendingImages) {
+    if (p.hash in altByHash) p.alt = altByHash[p.hash];
+  }
+  if (!current) return;
+  current.imageMeta = current.imageMeta || {};
+  for (const hash of (current.imageHashes || [])) {
+    if (hash in altByHash) {
+      current.imageMeta[hash] = { ...(current.imageMeta[hash] || {}), alt: altByHash[hash] };
+    }
+  }
+}
+
 async function renderThumbs() {
+  harvestTypedAlt();
   const el = $('thumbs'); el.innerHTML = '';
   const hashes = [...(current.imageHashes || []), ...pendingImages.map(p => p.hash)];
   for (const h of hashes) {
@@ -142,10 +174,7 @@ async function onFiles(ev) {
 async function saveLocal() {
   if (!$('f-title').value.trim()) { $('editor-status').textContent = 'Title is required.'; return; }
   // Alt text lives in the DOM until save; read it back before the inputs go away.
-  const altByHash = {};
-  for (const input of document.querySelectorAll('#thumbs .alt-in')) {
-    altByHash[input.dataset.hash] = input.value.trim();
-  }
+  const altByHash = readAltFromDom();
   current.imageMeta = current.imageMeta || {};
   for (const p of pendingImages) {
     await store.putBlob(db, p.hash, p.blob);
