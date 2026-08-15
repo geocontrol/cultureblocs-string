@@ -30,12 +30,23 @@ export function toImageRef(blobRef, meta = {}) {
  * the work would never show as edited. Rebuilding from the published blob refs
  * plus current metadata makes every editable field count.
  *
- * Pairing imageHashes[i] with publishedImages[i] by index assumes the two
- * arrays stay in the same order. That holds only because imageHashes is
- * append-only and Easel has no reorder or delete-image UI. If a reorder or
- * middle-delete feature is ever added, this index pairing will attach
- * metadata to the wrong image — the fix at that point is to record the hash
- * order at publish time rather than relying on array position.
+ * Pairing is by content hash, via `work.publishedImageHashes` — a array
+ * parallel to `work.publishedImages` recording which local hash (if any)
+ * produced each published entry. `publishWork` (publish.js) builds it
+ * alongside the upload, and `workFromRecord` (restore) builds it by matching
+ * fetched blobs back to the record's image entries — so a skipped upload
+ * (publish.js's `if (!blob) continue`) or a failed restore fetch
+ * (easel.js's restoreFromRepo) never desynchronises the two arrays, even
+ * though neither is positionally aligned to the other any more.
+ *
+ * Works saved before this change have no `publishedImageHashes`. For those,
+ * this falls back to the old imageHashes[i] <-> publishedImages[i] index
+ * pairing, which carries the original caveat: it's correct only because
+ * imageHashes is append-only and Easel has no reorder or delete-image UI,
+ * AND because — before this fix — every publish/restore kept the two arrays
+ * aligned by position. A legacy work that already suffered the position-drift
+ * bug (a skipped restore/publish image) keeps whatever mismatch it already
+ * had; the fallback does not retroactively repair it.
  *
  * A hash with no matching published entry (an image added since the last
  * publish) is not dropped: this projection is drift-only — it is compared
@@ -46,8 +57,10 @@ export function toImageRef(blobRef, meta = {}) {
  * shows up as drift instead of vanishing. */
 export function projectImages(work) {
   const published = work.publishedImages || [];
+  const byHash = Array.isArray(work.publishedImageHashes) ? work.publishedImageHashes : null;
   return (work.imageHashes || []).map((hash, i) => {
-    const entry = published[i];
+    const idx = byHash ? byHash.indexOf(hash) : i;
+    const entry = idx >= 0 ? published[idx] : undefined;
     const meta = (work.imageMeta || {})[hash] || {};
     if (!entry) return { unpublished: hash };
     const blobRef = entry.image || entry;      // imageRef, or a legacy bare blob
@@ -102,14 +115,20 @@ export function rkeyFromUri(uri) {
  * The rkey becomes the local id, so editing a restored work still updates the
  * same record rather than creating a duplicate.
  *
- * imageHashes are the sha256s of the downloaded blobs (the local blob store is
- * content-addressed), so they are computed by the caller and passed in.
+ * `imagePairs` is `[{hash, entry}]` — the sha256 of each downloaded blob
+ * (the local blob store is content-addressed) paired with the exact
+ * `rec.value.images[]` entry it came from. The caller (restoreFromRepo)
+ * builds this by walking the record's images in order and only emitting a
+ * pair for the ones it actually fetched; an image whose blob 404s is simply
+ * absent from `imagePairs`; it must NOT be assumed to align by position with
+ * whatever did get fetched, or one image's alt text ends up attached to a
+ * different image (see records.js's projectImages doc comment).
  *
  * publishedCanonical is derived from assembleWork rather than from the raw
  * record: it has to agree with what a later save would produce, or the work
  * would read as edited the moment it lands. Any field assembleWork does not
  * emit is therefore not round-tripped. */
-export function workFromRecord(record, imageHashes, now) {
+export function workFromRecord(record, imagePairs, now) {
   const v = record?.value || {};
   const body = {
     title: v.title || '',
@@ -121,20 +140,33 @@ export function workFromRecord(record, imageHashes, now) {
     createdAt: v.createdAt,
   };
   const publishedImages = v.images || [];
-  /* Rebuild the editor-side metadata map from what was published, keyed by the
-   * caller's content hashes (same order as publishedImages). A legacy bare-blob
-   * record yields empty metadata rather than failing the restore. */
+  const pairs = imagePairs || [];
+  const imageHashes = pairs.map(p => p.hash);
+
+  /* Rebuild the editor-side metadata map from what was published, keyed by
+   * content hash rather than position. A legacy bare-blob entry (no `.image`,
+   * `.alt` or `.aspectRatio`) yields empty metadata rather than failing the
+   * restore. */
   const imageMeta = {};
-  (imageHashes || []).forEach((hash, i) => {
-    const entry = publishedImages[i] || {};
+  for (const { hash, entry } of pairs) {
     const meta = {};
-    if (typeof entry.alt === 'string' && entry.alt) meta.alt = entry.alt;
-    const ar = entry.aspectRatio;
+    if (typeof entry?.alt === 'string' && entry.alt) meta.alt = entry.alt;
+    const ar = entry?.aspectRatio;
     if (Number.isInteger(ar?.width) && Number.isInteger(ar?.height)) {
       meta.width = ar.width; meta.height = ar.height;
     }
     imageMeta[hash] = meta;
-  });
+  }
+
+  /* publishedImageHashes mirrors publishedImages position-for-position: index
+   * i holds the local hash that produced publishedImages[i], or null where
+   * nothing was fetched for that entry (matched by object identity against
+   * `pairs`, since each pair's `entry` is the very object taken from
+   * `rec.value.images`). projectImages then looks a hash up by value, never
+   * by position, so a hole here just means "not available locally". */
+  const hashByEntry = new Map(pairs.map(p => [p.entry, p.hash]));
+  const publishedImageHashes = publishedImages.map(img => hashByEntry.get(img) ?? null);
+
   return {
     id: rkeyFromUri(record.uri),
     state: 'published',
@@ -146,6 +178,7 @@ export function workFromRecord(record, imageHashes, now) {
     publishedUri: record.uri,
     publishedCid: record.cid,
     publishedImages,
+    publishedImageHashes,
     publishedCanonical: canonicalJSON(assembleWork(body, publishedImages)),
   };
 }

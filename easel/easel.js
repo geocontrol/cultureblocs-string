@@ -232,7 +232,11 @@ async function restoreFromRepo() {
     let restored = 0, imagesMissing = 0;
     for (const rec of fresh) {
       status.textContent = `Restoring ${restored + 1} of ${fresh.length}…`;
-      const hashes = [];
+      // {hash, entry} pairs, one per image actually fetched — never assumed
+      // to align by position with rec.value.images. A failed fetch (a 404'd
+      // blob) just leaves that entry out of `pairs`; workFromRecord matches
+      // by object identity against rec.value.images to place it correctly.
+      const pairs = [];
       for (const img of (rec.value?.images || [])) {
         const blobRef = img?.image || img;          // imageRef, or a legacy bare blob
         const cid = blobRef?.ref?.$link || blobRef?.cid;
@@ -241,10 +245,10 @@ async function restoreFromRepo() {
           const blob = await fetchBlob(s.pds, s.did, cid);
           const hash = await store.hashBlob(blob);
           await store.putBlob(db, hash, blob);
-          hashes.push(hash);
+          pairs.push({ hash, entry: img });
         } catch (e) { imagesMissing++; }   // keep the work; it just lacks that image
       }
-      await store.saveWork(db, workFromRecord(rec, hashes, now));
+      await store.saveWork(db, workFromRecord(rec, pairs, now));
       restored++;
     }
 
@@ -361,6 +365,7 @@ function wire() {
       current.state = 'published';
       current.publishedUri = res.uri; current.publishedCid = res.cid;
       current.publishedCanonical = res.canonical; current.publishedImages = res.imageBlobRefs;
+      current.publishedImageHashes = res.publishedImageHashes;
       current.updatedAt = new Date().toISOString();
       await store.saveWork(db, current);
       $('btn-unpublish').classList.remove('hidden');
@@ -377,6 +382,7 @@ function wire() {
       current.state = 'draft';
       delete current.publishedUri; delete current.publishedCid;
       delete current.publishedCanonical; delete current.publishedImages;
+      delete current.publishedImageHashes;
       current.updatedAt = new Date().toISOString();
       await store.saveWork(db, current);
       $('btn-unpublish').classList.add('hidden');

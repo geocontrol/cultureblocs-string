@@ -74,17 +74,19 @@ test('assembleWork emits imageRefs under images', () => {
 });
 
 test('workFromRecord restores alt and dimensions into imageMeta', () => {
+  const imgEntry = { image: BLOB, alt: 'restored alt', aspectRatio: { width: 8, height: 6 } };
   const rec = {
     uri: 'at://did:plc:x/com.cultureblocs.creative.work/abc123',
     cid: 'bafycid',
     value: {
       title: 'W', createdAt: '2026-08-15T10:00:00Z',
-      images: [{ image: BLOB, alt: 'restored alt', aspectRatio: { width: 8, height: 6 } }],
+      images: [imgEntry],
     },
   };
-  const w = workFromRecord(rec, ['hash1'], '2026-08-15T11:00:00Z');
+  const w = workFromRecord(rec, [{ hash: 'hash1', entry: imgEntry }], '2026-08-15T11:00:00Z');
   assert.equal(w.id, 'abc123');
   assert.deepEqual(w.imageMeta, { hash1: { alt: 'restored alt', width: 8, height: 6 } });
+  assert.deepEqual(w.publishedImageHashes, ['hash1']);
 });
 
 test('workFromRecord tolerates a legacy bare-blob record', () => {
@@ -93,8 +95,28 @@ test('workFromRecord tolerates a legacy bare-blob record', () => {
     cid: 'bafycid',
     value: { title: 'W', createdAt: '2026-08-15T10:00:00Z', images: [BLOB] },
   };
-  const w = workFromRecord(rec, ['hash1'], '2026-08-15T11:00:00Z');
+  const w = workFromRecord(rec, [{ hash: 'hash1', entry: BLOB }], '2026-08-15T11:00:00Z');
   assert.deepEqual(w.imageMeta, { hash1: {} });
+});
+
+test('workFromRecord pairs by identity, not position, when an image is missing locally', () => {
+  // Two published images; image1's blob 404'd during restore so only image2
+  // was actually fetched. Before the fix, workFromRecord paired by array
+  // position and would have attached image1's alt text to image2's hash.
+  const img1 = { image: BLOB, alt: 'first image' };
+  const img2 = { image: { ...BLOB, ref: { $link: 'bafkreiB' } }, alt: 'second image' };
+  const rec = {
+    uri: 'at://did:plc:x/com.cultureblocs.creative.work/mixed1',
+    cid: 'bafycid',
+    value: { title: 'W', createdAt: '2026-08-15T10:00:00Z', images: [img1, img2] },
+  };
+  // Only img2 was fetched (img1's blob 404'd) — its pair is the ONLY entry.
+  const w = workFromRecord(rec, [{ hash: 'hash2', entry: img2 }], '2026-08-15T11:00:00Z');
+  assert.deepEqual(w.imageHashes, ['hash2']);
+  assert.deepEqual(w.imageMeta, { hash2: { alt: 'second image' } },
+    'hash2 must carry img2\'s own alt text, not img1\'s');
+  assert.deepEqual(w.publishedImageHashes, [null, 'hash2'],
+    'publishedImageHashes stays aligned to publishedImages by position; the missing slot is null');
 });
 
 test('projectImages rebuilds imageRefs from published blobs + current metadata', () => {
@@ -167,6 +189,60 @@ test('projectImages returns only real imageRefs when every hash is published', (
   const result = projectImages(work);
   assert.equal(result.length, 1);
   assert.equal('unpublished' in result[0], false);
+  assert.deepEqual(result, [{
+    image: BLOB,
+    alt: 'edited alt',
+    aspectRatio: { width: 4, height: 3 },
+  }]);
+});
+
+// I2 — a hash must pair with its OWN published entry by content hash, not by
+// array position, once the two arrays can drift out of alignment (a skipped
+// upload in publish.js, or a failed fetch in easel.js's restoreFromRepo).
+
+const IMG1 = { $type: 'blob', ref: { $link: 'bafkreiONE' }, mimeType: 'image/jpeg', size: 1 };
+const IMG3 = { $type: 'blob', ref: { $link: 'bafkreiTHREE' }, mimeType: 'image/jpeg', size: 1 };
+
+test('projectImages maps each remaining hash to its own alt text when a middle image was skipped at publish', () => {
+  // Three images locally; the middle one (hash2) failed to upload, so
+  // publishWork's `if (!blob) continue` dropped it from BOTH images and
+  // publishedImageHashes together — publishedImages/publishedImageHashes
+  // only ever describe hash1 and hash3.
+  const work = {
+    imageHashes: ['hash1', 'hash2', 'hash3'],
+    imageMeta: {
+      hash1: { alt: 'first image' },
+      hash2: { alt: 'second image, never published' },
+      hash3: { alt: 'third image' },
+    },
+    publishedImages: [
+      { image: IMG1, alt: 'first image' },
+      { image: IMG3, alt: 'third image' },
+    ],
+    publishedImageHashes: ['hash1', 'hash3'],
+  };
+  const result = projectImages(work);
+  assert.deepEqual(result[0], { image: IMG1, alt: 'first image' },
+    'hash1 keeps its own entry');
+  assert.deepEqual(result[1], { unpublished: 'hash2' },
+    'hash2 was never actually published — it must not borrow hash3\'s entry');
+  assert.deepEqual(result[2], { image: IMG3, alt: 'third image' },
+    'hash3 must resolve to ITS OWN published entry, not read as unpublished ' +
+    'just because its array position no longer lines up');
+});
+
+test('projectImages falls back to index pairing for a legacy work with no publishedImageHashes', () => {
+  // A work saved before this fix has no publishedImageHashes at all. The
+  // fallback must reproduce the old (position-based) behaviour exactly, so
+  // works already sitting in a browser's IndexedDB keep working.
+  const work = {
+    imageHashes: ['hash1'],
+    imageMeta: { hash1: { alt: 'edited alt', width: 4, height: 3 } },
+    publishedImages: [{ image: BLOB, alt: 'original alt' }],
+    // no publishedImageHashes
+  };
+  assert.equal('publishedImageHashes' in work, false);
+  const result = projectImages(work);
   assert.deepEqual(result, [{
     image: BLOB,
     alt: 'edited alt',

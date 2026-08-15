@@ -25,18 +25,28 @@ async function uploadBlob(client, blob) {
 
 export async function publishWork(client, did, work, loadBlob) {
   const images = [];
+  // Parallel to `images`: publishedImageHashes[i] is the local content hash
+  // that produced images[i]. A hash whose blob can't be loaded is skipped
+  // from BOTH arrays together, so they never drift apart positionally —
+  // that's what let a skipped image silently offset imageHashes against
+  // publishedImages before this fix (see records.js's projectImages).
+  const publishedImageHashes = [];
   for (const hash of (work.imageHashes || [])) {
     const blob = await loadBlob(hash);
     if (!blob) continue;
     if (blob.size > 2_000_000) throw new Error('image exceeds 2MB — re-save to downscale');
     const blobRef = await uploadBlob(client, blob);
     images.push(toImageRef(blobRef, (work.imageMeta || {})[hash] || {}));
+    publishedImageHashes.push(hash);
   }
   const record = assembleWork(work.body, images);
   const res = await xrpc(client, 'com.atproto.repo.putRecord', {
     repo: did, collection: 'com.cultureblocs.creative.work', rkey: work.id, record,
   });
-  return { uri: res.uri, cid: res.cid, canonical: canonicalJSON(record), imageBlobRefs: images };
+  return {
+    uri: res.uri, cid: res.cid, canonical: canonicalJSON(record),
+    imageBlobRefs: images, publishedImageHashes,
+  };
 }
 
 export async function unpublishWork(client, did, work) {

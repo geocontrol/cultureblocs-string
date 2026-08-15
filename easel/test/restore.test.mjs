@@ -17,12 +17,16 @@ const REC = {
   },
 };
 
+// workFromRecord's second argument is [{hash, entry}] — entry must be the
+// exact object from REC.value.images so pairing-by-identity resolves it.
+const PAIRS = [{ hash: 'hash1', entry: REC.value.images[0] }];
+
 test('rkeyFromUri takes the record key off an at:// uri', () => {
   assert.equal(rkeyFromUri(REC.uri), 'jox7cmxrmd7cbo4u');
 });
 
 test('workFromRecord rebuilds the local shape, keyed by the real rkey', () => {
-  const w = workFromRecord(REC, ['hash1'], '2026-08-13T09:00:00Z');
+  const w = workFromRecord(REC, PAIRS, '2026-08-13T09:00:00Z');
   assert.equal(w.id, 'jox7cmxrmd7cbo4u');   // the rkey, so edit-in-place still works
   assert.equal(w.state, 'published');
   assert.equal(w.body.title, 'Reality Towards Enemy');
@@ -41,13 +45,13 @@ test('a freshly restored work does not read as edited', () => {
   // If publishedCanonical did not match what assembleWork produces from the
   // restored body, every pulled work would show "Edited since publish" and a
   // republish would churn the repo for no reason.
-  const w = workFromRecord(REC, ['hash1'], '2026-08-13T09:00:00Z');
+  const w = workFromRecord(REC, PAIRS, '2026-08-13T09:00:00Z');
   const current = assembleWork(w.body, w.publishedImages);
   assert.equal(isDrifted(w.publishedCanonical, current), false);
 });
 
 test('editing a restored work then does read as drifted', () => {
-  const w = workFromRecord(REC, ['hash1'], '2026-08-13T09:00:00Z');
+  const w = workFromRecord(REC, PAIRS, '2026-08-13T09:00:00Z');
   const edited = assembleWork({ ...w.body, title: 'Renamed' }, w.publishedImages);
   assert.equal(isDrifted(w.publishedCanonical, edited), true);
 });
@@ -63,7 +67,7 @@ test('workFromRecord handles a record with no images', () => {
 
 test('workFromRecord preserves links when present', () => {
   const rec = { ...REC, value: { ...REC.value, links: [{ uri: 'https://p.example', title: 'press' }] } };
-  const w = workFromRecord(rec, ['hash1'], '2026-08-13T09:00:00Z');
+  const w = workFromRecord(rec, PAIRS, '2026-08-13T09:00:00Z');
   assert.deepEqual(w.body.links, [{ uri: 'https://p.example', title: 'press' }]);
   assert.equal(isDrifted(w.publishedCanonical, assembleWork(w.body, w.publishedImages)), false);
 });
