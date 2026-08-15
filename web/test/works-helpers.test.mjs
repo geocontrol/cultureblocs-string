@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { latest, blobUrl, cardModel, safeHref } from '../cultureblocs-works.js';
+import { latest, blobUrl, cardModel, safeHref, imageFrom } from '../cultureblocs-works.js';
 
 test('latest sorts by createdAt desc and applies limit', () => {
   const recs = [
@@ -50,4 +50,48 @@ test('safeHref allows http(s) schemes and rejects dangerous schemes', () => {
   assert.equal(safeHref('ftp://example.com'), null);
   assert.equal(safeHref(''), null);
   assert.equal(safeHref(undefined), null);
+});
+
+test('imageFrom reads the blob out of an imageRef', () => {
+  const m = imageFrom({
+    image: { $type: 'blob', ref: { $link: 'bafkreiA' }, mimeType: 'image/jpeg', size: 1 },
+    alt: 'A gasholder at dusk.',
+    aspectRatio: { width: 1600, height: 1067 },
+  });
+  assert.equal(m.cid, 'bafkreiA');
+  assert.equal(m.alt, 'A gasholder at dusk.');
+  assert.equal(m.width, 1600);
+  assert.equal(m.height, 1067);
+});
+
+test('imageFrom tolerates a legacy bare blob from a stranger repo', () => {
+  const m = imageFrom({ $type: 'blob', ref: { $link: 'bafkreiOld' }, mimeType: 'image/png', size: 1 });
+  assert.equal(m.cid, 'bafkreiOld');
+  assert.equal(m.alt, '');
+  assert.equal(m.width, null);
+});
+
+test('imageFrom returns null when there is no cid', () => {
+  assert.equal(imageFrom(null), null);
+  assert.equal(imageFrom({ alt: 'no image here' }), null);
+});
+
+test('cardModel never substitutes the title for missing alt text', () => {
+  const m = cardModel({ value: {
+    title: 'Reality Towards Enemy',
+    images: [{ image: { ref: { $link: 'bafkreiA' } } }],
+  }});
+  assert.equal(m.imageCid, 'bafkreiA');
+  assert.equal(m.imageAlt, '', 'an absent alt must render as empty, not as the title');
+});
+
+test('cardModel carries alt and dimensions through', () => {
+  const m = cardModel({ value: {
+    title: 'Untitled',
+    images: [{ image: { ref: { $link: 'bafkreiB' } }, alt: 'ink on paper',
+               aspectRatio: { width: 800, height: 600 } }],
+  }});
+  assert.equal(m.imageAlt, 'ink on paper');
+  assert.equal(m.imageWidth, 800);
+  assert.equal(m.imageHeight, 600);
 });
