@@ -60,7 +60,7 @@ def test_malformed_aspect_ratio_is_dropped_not_published():
     publisher._upload_blob = fake_blob
     media_dir = with_media_dir({"abc.jpg": b"x" * 10})
     for bad in ({"width": 0, "height": 10}, {"width": "1600", "height": 1067},
-                {"width": 1600}, "1600x1067", None):
+                {"width": 1600}, {"width": True, "height": True}, "1600x1067", None):
         body = {"media": [{"uri": "http://brick:8100/media/abc.jpg", "aspectRatio": bad}]}
         refs = publisher._image_refs(body, media_dir, "https://pds.example", "jwt")
         assert "aspectRatio" not in refs[0], f"{bad!r} should not publish: {refs[0]}"

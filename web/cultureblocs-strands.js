@@ -156,7 +156,7 @@ class CultureblocsStrands extends HTMLElement {
             const m = imageModel(entry);
             if (!m || !blobBase) return '';
             const dims = m.width ? ` width="${m.width}" height="${m.height}"` : '';
-            return `<img loading="lazy" src="${esc(blobBase+m.cid)}" alt="${esc(m.alt)}"${dims}>`;
+            return `<img loading="lazy" src="${esc(blobBase+encodeURIComponent(m.cid))}" alt="${esc(m.alt)}"${dims}>`;
           }).join('');
       const links = (it.links||[]).map(l=>
         `<a href="${esc(l.uri)}" target="_blank" rel="noopener">${esc(l.title||'link')}</a>`).join(' ');
