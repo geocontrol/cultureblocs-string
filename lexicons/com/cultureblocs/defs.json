@@ -109,7 +109,7 @@
     },
     "mediaRef": {
       "type": "object",
-      "description": "Tier 0/1 media reference. Replaced by an atproto blob at promotion time.",
+      "description": "Tier 0/1 media reference. Replaced by an imageRef at promotion time; alt text and aspectRatio carry across unchanged.",
       "required": [
         "uri"
       ],
@@ -125,7 +125,27 @@
         "alt": {
           "type": "string",
           "maxGraphemes": 1000
-        }
+        },
+        "aspectRatio": { "type": "ref", "ref": "#aspectRatio" }
+      }
+    },
+    "aspectRatio": {
+      "type": "object",
+      "description": "Pixel dimensions, so a reader can reserve layout space before the image bytes arrive. Shape matches app.bsky.embed.images#aspectRatio.",
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "imageRef": {
+      "type": "object",
+      "description": "A published image and the two things a reader needs to present it honestly: what it shows, and how much room it takes. Field names match app.bsky.embed.images#image and the community standalone-image proposal, so this can become a ref to a shared lexicon without changing the published payload.",
+      "required": ["image"],
+      "properties": {
+        "image": { "type": "blob", "accept": ["image/*"], "maxSize": 2000000 },
+        "alt": { "type": "string", "maxGraphemes": 2000, "description": "What the image shows. Absent means absent — readers must not substitute a title." },
+        "aspectRatio": { "type": "ref", "ref": "#aspectRatio" }
       }
     },
     "provenance": {

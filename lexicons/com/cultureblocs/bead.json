@@ -85,17 +85,14 @@
             },
             "description": "Event page, venue page, etc."
           },
-          "photos": {
+          "images": {
             "type": "array",
             "maxLength": 10,
             "items": {
-              "type": "blob",
-              "accept": [
-                "image/*"
-              ],
-              "maxSize": 2000000
+              "type": "ref",
+              "ref": "com.cultureblocs.defs#imageRef"
             },
-            "description": "Published photos as ATProto blobs. Tier 0 records use `media` (local refs); the promoter uploads and swaps at publish time."
+            "description": "Published images as imageRefs. Tier 0 records use `media` (local refs); the promoter uploads the bytes and maps alt + aspectRatio across at publish time."
           }
         }
       }

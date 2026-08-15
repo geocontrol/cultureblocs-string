@@ -21,10 +21,12 @@ def test_work_with_images_validates():
         "title": "Untitled #1",
         "createdAt": "2026-08-12T10:00:00Z",
         "images": [
-            {"$type": "blob",
-             "ref": {"$link": "bafkreieuchh6 testcid"},
-             "mimeType": "image/png",
-             "size": 12345},
+            {"image": {"$type": "blob",
+                       "ref": {"$link": "bafkreieuchh6testcid"},
+                       "mimeType": "image/png",
+                       "size": 12345},
+             "alt": "A test image.",
+             "aspectRatio": {"width": 800, "height": 600}},
         ],
     }
     problems = reg.validate_record("com.cultureblocs.creative.work", rec)
