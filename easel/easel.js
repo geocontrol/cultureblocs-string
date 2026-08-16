@@ -80,6 +80,12 @@ async function openEditor(id) {
     createdAt: new Date().toISOString(),
   };
   pendingImages = [];
+  // Drop the previous work's thumbnails before renderThumbs() harvests the DOM.
+  // Without this, harvestTypedAlt() reads inputs belonging to the work we just
+  // left; its per-hash guard catches the ordinary case, but two works sharing a
+  // byte-identical image share a content hash, and unsaved alt text would carry
+  // from one to the other.
+  $('thumbs').innerHTML = '';
   const b = current.body || {};
   $('f-title').value = b.title || '';
   $('f-desc').value = b.description || '';
