@@ -115,7 +115,8 @@ function readAltFromDom() {
  * has to be folded back into pendingImages / current.imageMeta before that
  * wipe — otherwise attaching another file (onFiles calls renderThumbs too)
  * silently discards it. Hashes not recognised as belonging to the current
- * work (e.g. leftover DOM from a previously open work) are ignored. */
+ * work are ignored — defence in depth only, since openEditor now clears
+ * #thumbs before it renders, so there is no leftover DOM to misread. */
 function harvestTypedAlt() {
   const altByHash = readAltFromDom();
   for (const p of pendingImages) {
