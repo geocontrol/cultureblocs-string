@@ -26,6 +26,34 @@
  */
 const XRPC_PUBLIC = 'https://public.api.bsky.app/xrpc';
 
+/* A bead's published images. `images` is the current field; `photos` was the
+ * name before the imageRef change and is still read, because this element
+ * takes an `actor` attribute and renders any repository on the network. */
+export function beadImages(item){
+  const v = item || {};
+  if (Array.isArray(v.images) && v.images.length) return v.images;
+  if (Array.isArray(v.photos)) return v.photos;
+  return [];
+}
+
+/* One images[] entry -> what the renderer needs. `entry.image ?? entry`
+ * reads both an imageRef and a legacy bare blob. */
+export function imageModel(entry){
+  if (!entry || typeof entry !== 'object') return null;
+  const blob = entry.image || entry;
+  const cid = blob?.ref?.$link || blob?.cid || null;
+  if (!cid) return null;
+  const ar = entry.aspectRatio;
+  const w = Number.isInteger(ar?.width) && ar.width > 0 ? ar.width : null;
+  const h = Number.isInteger(ar?.height) && ar.height > 0 ? ar.height : null;
+  return {
+    cid,
+    alt: typeof entry.alt === 'string' ? entry.alt : '',
+    width: w && h ? w : null,
+    height: w && h ? h : null,
+  };
+}
+
 export async function fetchActorStrands(actor, {pds=null, limit=0, fetchFn=fetch}={}){
   const j = async url => { const r = await fetchFn(url); if(!r.ok) throw new Error(url+': '+r.status); return r.json(); };
   let did = actor;
@@ -59,6 +87,7 @@ export async function fetchActorStrands(actor, {pds=null, limit=0, fetchFn=fetch
   return bundles;
 }
 
+if (typeof customElements !== 'undefined' && typeof HTMLElement !== 'undefined') {
 class CultureblocsStrands extends HTMLElement {
   static get observedAttributes(){ return ['actor','pds','src','limit'] }
   attributeChangedCallback(){ this.#load() }
@@ -123,10 +152,11 @@ class CultureblocsStrands extends HTMLElement {
         : (it.subject?.name?`<span class="work">${esc(it.subject.name)}</span>`:'');
       const media = (it.media||[]).map(m=>
         `<img loading="lazy" src="${esc(base+m.uri)}" alt="${esc(m.alt||'')}">`).join('')
-        + (it.photos||[]).map(ph=>{
-            const cid = ph.ref && (ph.ref.$link || ph.ref["$link"]);
-            return (blobBase && cid)
-              ? `<img loading="lazy" src="${esc(blobBase+cid)}" alt="">` : '';
+        + beadImages(it).map(entry=>{
+            const m = imageModel(entry);
+            if (!m || !blobBase) return '';
+            const dims = m.width ? ` width="${m.width}" height="${m.height}"` : '';
+            return `<img loading="lazy" src="${esc(blobBase+encodeURIComponent(m.cid))}" alt="${esc(m.alt)}"${dims}>`;
           }).join('');
       const links = (it.links||[]).map(l=>
         `<a href="${esc(l.uri)}" target="_blank" rel="noopener">${esc(l.title||'link')}</a>`).join(' ');
@@ -185,4 +215,7 @@ class CultureblocsStrands extends HTMLElement {
     ${strands.map(b=>{blobBase=b.blobBase||'';return strand(b)}).join('') || ''}`;
   }
 }
-customElements.define('cultureblocs-strands', CultureblocsStrands);
+  if (!customElements.get('cultureblocs-strands')) {
+    customElements.define('cultureblocs-strands', CultureblocsStrands);
+  }
+}

@@ -1,5 +1,5 @@
 import * as store from './lib/store.js';
-import { assembleWork, assembleProfile, isDrifted } from './lib/records.js';
+import { assembleWork, assembleProfile, isDrifted, projectImages } from './lib/records.js';
 import { downscaleDims, renderToBlob } from './lib/image.js';
 import { makeRkey } from './lib/rkey.js';
 import * as oauth from './oauth.js';
@@ -80,6 +80,12 @@ async function openEditor(id) {
     createdAt: new Date().toISOString(),
   };
   pendingImages = [];
+  // Drop the previous work's thumbnails before renderThumbs() harvests the DOM.
+  // Without this, harvestTypedAlt() reads inputs belonging to the work we just
+  // left; its per-hash guard catches the ordinary case, but two works sharing a
+  // byte-identical image share a content hash, and unsaved alt text would carry
+  // from one to the other.
+  $('thumbs').innerHTML = '';
   const b = current.body || {};
   $('f-title').value = b.title || '';
   $('f-desc').value = b.description || '';
@@ -93,13 +99,62 @@ async function openEditor(id) {
   show('editor');
 }
 
+/* Read the alt text currently typed into the editor's thumbnail inputs,
+ * keyed by content hash. saveLocal and harvestTypedAlt both need this same
+ * DOM read, so it lives in one place. */
+function readAltFromDom() {
+  const altByHash = {};
+  for (const input of document.querySelectorAll('#thumbs .alt-in')) {
+    altByHash[input.dataset.hash] = input.value.trim();
+  }
+  return altByHash;
+}
+
+/* renderThumbs() wipes and rebuilds #thumbs from stored metadata. Anything
+ * the user typed since the last save lives only in the DOM until then, so it
+ * has to be folded back into pendingImages / current.imageMeta before that
+ * wipe — otherwise attaching another file (onFiles calls renderThumbs too)
+ * silently discards it. Hashes not recognised as belonging to the current
+ * work are ignored — defence in depth only, since openEditor now clears
+ * #thumbs before it renders, so there is no leftover DOM to misread. */
+function harvestTypedAlt() {
+  const altByHash = readAltFromDom();
+  for (const p of pendingImages) {
+    if (p.hash in altByHash) p.alt = altByHash[p.hash];
+  }
+  if (!current) return;
+  current.imageMeta = current.imageMeta || {};
+  for (const hash of (current.imageHashes || [])) {
+    if (hash in altByHash) {
+      current.imageMeta[hash] = { ...(current.imageMeta[hash] || {}), alt: altByHash[hash] };
+    }
+  }
+}
+
 async function renderThumbs() {
+  harvestTypedAlt();
   const el = $('thumbs'); el.innerHTML = '';
   const hashes = [...(current.imageHashes || []), ...pendingImages.map(p => p.hash)];
   for (const h of hashes) {
     const staged = pendingImages.find(p => p.hash === h);
     const blob = staged ? staged.blob : (await store.getBlob(db, h))?.blob;
-    if (blob) { const img = document.createElement('img'); img.src = URL.createObjectURL(blob); el.appendChild(img); }
+    if (!blob) continue;
+    const meta = staged || (current.imageMeta || {})[h] || {};
+
+    const fig = document.createElement('figure');
+    fig.className = 'thumb';
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(blob);
+    img.alt = '';                       // the editor's own preview is decorative
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'alt-in';
+    input.placeholder = 'Describe this image';
+    input.maxLength = 2000;
+    input.value = meta.alt || '';
+    input.dataset.hash = h;
+    fig.append(img, input);
+    el.appendChild(fig);
   }
 }
 
@@ -117,7 +172,7 @@ async function onFiles(ev) {
     const blob = await renderToBlob(bitmap, dims, { watermark: $('f-watermark').checked ? 'geekyoto.com' : null });
     const hash = await store.hashBlob(blob);
     if (![...(current.imageHashes || []), ...pendingImages.map(p => p.hash)].includes(hash))
-      pendingImages.push({ hash, blob, alt: '' });
+      pendingImages.push({ hash, blob, alt: '', width: dims.width, height: dims.height });
   }
   ev.target.value = '';
   await renderThumbs();
@@ -125,8 +180,20 @@ async function onFiles(ev) {
 
 async function saveLocal() {
   if (!$('f-title').value.trim()) { $('editor-status').textContent = 'Title is required.'; return; }
-  for (const p of pendingImages) { await store.putBlob(db, p.hash, p.blob); current.imageHashes.push(p.hash); }
+  // Alt text lives in the DOM until save; read it back before the inputs go away.
+  const altByHash = readAltFromDom();
+  current.imageMeta = current.imageMeta || {};
+  for (const p of pendingImages) {
+    await store.putBlob(db, p.hash, p.blob);
+    current.imageHashes.push(p.hash);
+    current.imageMeta[p.hash] = { width: p.width, height: p.height };
+  }
   pendingImages = [];
+  for (const hash of current.imageHashes) {
+    const meta = current.imageMeta[hash] || {};
+    if (hash in altByHash) meta.alt = altByHash[hash];
+    current.imageMeta[hash] = meta;
+  }
   current.body = {
     title: $('f-title').value.trim(),
     description: $('f-desc').value.trim(),
@@ -139,7 +206,7 @@ async function saveLocal() {
   current.updatedAt = new Date().toISOString();
   // drift: if published and body changed, mark edited
   if (current.state === 'published' && current.publishedCanonical &&
-      isDrifted(current.publishedCanonical, assembleWork(current.body, current.publishedImages || [])))
+      isDrifted(current.publishedCanonical, assembleWork(current.body, projectImages(current))))
     current.state = 'edited';
   await store.saveWork(db, current);
   $('editor-status').textContent = 'Saved locally.';
@@ -172,18 +239,23 @@ async function restoreFromRepo() {
     let restored = 0, imagesMissing = 0;
     for (const rec of fresh) {
       status.textContent = `Restoring ${restored + 1} of ${fresh.length}…`;
-      const hashes = [];
+      // {hash, entry} pairs, one per image actually fetched — never assumed
+      // to align by position with rec.value.images. A failed fetch (a 404'd
+      // blob) just leaves that entry out of `pairs`; workFromRecord matches
+      // by object identity against rec.value.images to place it correctly.
+      const pairs = [];
       for (const img of (rec.value?.images || [])) {
-        const cid = img?.ref?.$link || img?.cid;
+        const blobRef = img?.image || img;          // imageRef, or a legacy bare blob
+        const cid = blobRef?.ref?.$link || blobRef?.cid;
         if (!cid) continue;
         try {
           const blob = await fetchBlob(s.pds, s.did, cid);
           const hash = await store.hashBlob(blob);
           await store.putBlob(db, hash, blob);
-          hashes.push(hash);
+          pairs.push({ hash, entry: img });
         } catch (e) { imagesMissing++; }   // keep the work; it just lacks that image
       }
-      await store.saveWork(db, workFromRecord(rec, hashes, now));
+      await store.saveWork(db, workFromRecord(rec, pairs, now));
       restored++;
     }
 
@@ -300,6 +372,7 @@ function wire() {
       current.state = 'published';
       current.publishedUri = res.uri; current.publishedCid = res.cid;
       current.publishedCanonical = res.canonical; current.publishedImages = res.imageBlobRefs;
+      current.publishedImageHashes = res.publishedImageHashes;
       current.updatedAt = new Date().toISOString();
       await store.saveWork(db, current);
       $('btn-unpublish').classList.remove('hidden');
@@ -316,6 +389,7 @@ function wire() {
       current.state = 'draft';
       delete current.publishedUri; delete current.publishedCid;
       delete current.publishedCanonical; delete current.publishedImages;
+      delete current.publishedImageHashes;
       current.updatedAt = new Date().toISOString();
       await store.saveWork(db, current);
       $('btn-unpublish').classList.add('hidden');

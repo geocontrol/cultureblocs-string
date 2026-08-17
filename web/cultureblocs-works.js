@@ -18,16 +18,42 @@ export function blobUrl(pdsBase, did, blobRef) {
     + `?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(cid)}`;
 }
 
+/* An images[] entry is an imageRef: {image: blob, alt?, aspectRatio?}.
+ * The `item.image ?? item` fallback reads a bare blob too. That is not
+ * migration scaffolding — this element takes an `actor` attribute and reads
+ * any repository on the network, so records written to the older shape by
+ * someone else stay renderable. */
+export function imageFrom(item) {
+  if (!item || typeof item !== 'object') return null;
+  const blob = item.image || item;
+  const cid = blob?.ref?.$link || blob?.cid || null;
+  if (!cid) return null;
+  const ar = item.aspectRatio;
+  const width = Number.isInteger(ar?.width) && ar.width > 0 ? ar.width : null;
+  const height = Number.isInteger(ar?.height) && ar.height > 0 ? ar.height : null;
+  return {
+    cid,
+    alt: typeof item.alt === 'string' ? item.alt : '',
+    width: width && height ? width : null,
+    height: width && height ? height : null,
+  };
+}
+
 export function cardModel(record) {
   const v = record?.value || {};
-  const img = Array.isArray(v.images) && v.images.length ? v.images[0] : null;
+  const first = Array.isArray(v.images) && v.images.length ? v.images[0] : null;
+  const img = imageFrom(first);
   return {
     title: v.title || '',
     description: v.description || '',
     completionDate: v.completionDate || '',
     referenceUrl: v.referenceUrl || '',
-    imageCid: img?.ref?.$link || img?.cid || null,
-    imageAlt: img?.alt || v.title || '',
+    imageCid: img?.cid || null,
+    // No title fallback. An empty alt marks an image decorative and a screen
+    // reader skips it; the title as alt makes it announce the title twice.
+    imageAlt: img?.alt || '',
+    imageWidth: img?.width || null,
+    imageHeight: img?.height || null,
   };
 }
 
@@ -103,7 +129,9 @@ function renderCard(root, model, imgSrc) {
   const href = safeHref(model.referenceUrl);
   root.innerHTML = `<style>${css()}</style>
     <article class="card">
-      ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(model.imageAlt)}">` : ''}
+      ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(model.imageAlt)}"${
+        model.imageWidth ? ` width="${model.imageWidth}" height="${model.imageHeight}"` : ''
+      }>` : ''}
       <div class="body">
         <p class="title">${escapeHtml(model.title)}</p>
         ${model.completionDate ? `<p class="meta">${escapeHtml(model.completionDate)}</p>` : ''}
@@ -113,9 +141,26 @@ function renderCard(root, model, imgSrc) {
     </article>`;
 }
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+/* Decide the <img src> for a rendered card.
+ *
+ * `imageUrl` is a convenience field for baked exports only (see fetchBaked,
+ * which stamps `baked: true`) — it is never trusted from a live repo, because
+ * lexicons tolerate unknown fields and a remote actor could publish their own
+ * `imageUrl` on a com.cultureblocs.creative.work record. fetchLive never sets
+ * `baked`, so `res.baked` gates this: only a locally-baked file, which this
+ * page's own build controls, gets to pick the image URL directly. Anything
+ * else falls through to a blob URL built from the record's own image cid. */
+export function resolveImgSrc(rec, model, res) {
+  let imgSrc = (res?.baked && rec?.value?.imageUrl) || null;
+  if (!imgSrc && model.imageCid && res?.pds && res?.did) {
+    imgSrc = blobUrl(res.pds, res.did, { ref: { $link: model.imageCid } });
+  }
+  return imgSrc;
 }
 
 async function run(el, root) {
@@ -128,10 +173,7 @@ async function run(el, root) {
     if (!res.works.length) { root.innerHTML = ''; return; }
     const rec = res.works[0];
     const model = cardModel(rec);
-    let imgSrc = rec.value?.imageUrl || null;               // baked convenience
-    if (!imgSrc && model.imageCid && res.pds && res.did) {
-      imgSrc = blobUrl(res.pds, res.did, { ref: { $link: model.imageCid } });
-    }
+    const imgSrc = resolveImgSrc(rec, model, res);
     renderCard(root, model, imgSrc);
   } catch (e) {
     root.innerHTML = '';  // fail silently on public pages

@@ -9,7 +9,14 @@
         "completionDate": "2026",
         "referenceUrl": "https://www.cultureblocs.com/",
         "createdAt": "2026-08-12T09:00:00Z",
-        "imageUrl": "https://placehold.co/520x360/png"
+        "imageUrl": "https://placehold.co/520x360/png",
+        "images": [
+          {
+            "image": { "$type": "blob", "ref": { "$link": "bafkreifixture" }, "mimeType": "image/png", "size": 1000 },
+            "alt": "A placeholder rectangle standing in for a published work.",
+            "aspectRatio": { "width": 520, "height": 360 }
+          }
+        ]
       }
     }
   ]
