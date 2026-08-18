@@ -1,0 +1,18 @@
+/* grid — images lead, cards in a responsive grid. */
+:root{--cb-ink:#141414;--cb-mute:#666;--cb-line:#e5e5e5;--cb-accent:#b5482e;--cb-bg:#fff}
+body{background:var(--cb-bg);color:var(--cb-ink)}
+.cb-profile{max-width:60rem;margin:0 auto;padding:2.5rem 1.25rem 1rem}
+.cb-profile-name{font-size:1.75rem;margin:0 0 .25rem}
+.cb-profile-meta{color:var(--cb-mute);margin:0 0 .5rem}
+.cb-profile-bio{max-width:38rem;margin:0 0 .75rem}
+.cb-profile-links{list-style:none;display:flex;gap:1rem;padding:0;margin:0}
+.cb-profile-links a{color:var(--cb-accent)}
+.cb-catalogue{max-width:60rem;margin:0 auto;padding:1rem 1.25rem 4rem;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:2rem}
+.cb-work{display:flex;flex-direction:column;gap:.35rem}
+.cb-work-image{width:100%;height:auto;background:#f4f4f4;border:1px solid var(--cb-line);border-radius:4px}
+.cb-work-title{font-size:1rem;font-weight:600;margin:.5rem 0 0}
+.cb-work-meta{color:var(--cb-mute);font-size:.85rem;margin:0}
+.cb-work-desc{font-size:.9rem;margin:0}
+.cb-work-link{color:var(--cb-accent);font-size:.85rem;text-decoration:none}
+.cb-work-references{list-style:none;padding:0;margin:.25rem 0 0;font-size:.8rem;color:var(--cb-mute)}

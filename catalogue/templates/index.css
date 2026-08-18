@@ -1,0 +1,20 @@
+/* index — a working list. Images shrink to thumbnails; the text leads. */
+:root{--cb-ink:#141414;--cb-mute:#666;--cb-line:#e5e5e5;--cb-accent:#b5482e;--cb-bg:#fff}
+body{background:var(--cb-bg);color:var(--cb-ink)}
+.cb-profile{max-width:44rem;margin:0 auto;padding:2.5rem 1.25rem 1rem;
+  border-bottom:1px solid var(--cb-line)}
+.cb-profile-name{font-size:1.35rem;margin:0 0 .25rem}
+.cb-profile-meta{color:var(--cb-mute);font-size:.9rem;margin:0 0 .5rem}
+.cb-profile-bio{max-width:36rem;font-size:.95rem;margin:0 0 .75rem}
+.cb-profile-links{list-style:none;display:flex;gap:1rem;padding:0;margin:0;font-size:.9rem}
+.cb-profile-links a{color:var(--cb-accent)}
+.cb-catalogue{max-width:44rem;margin:0 auto;padding:0 1.25rem 4rem}
+.cb-work{display:grid;grid-template-columns:4rem 1fr;gap:.25rem 1rem;
+  align-items:baseline;padding:1rem 0;border-bottom:1px solid var(--cb-line)}
+.cb-work-image{grid-row:span 4;width:4rem;height:4rem;object-fit:cover;
+  align-self:start;border-radius:3px;background:#f4f4f4}
+.cb-work-title{grid-column:2;font-size:1rem;margin:0}
+.cb-work-meta{grid-column:2;color:var(--cb-mute);font-size:.85rem;margin:0}
+.cb-work-desc{grid-column:2;font-size:.9rem;margin:0}
+.cb-work-link{grid-column:2;color:var(--cb-accent);font-size:.85rem;text-decoration:none}
+.cb-work-references{grid-column:2;list-style:none;padding:0;margin:.25rem 0 0;font-size:.8rem;color:var(--cb-mute)}

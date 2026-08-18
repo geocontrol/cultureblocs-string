@@ -1,0 +1,20 @@
+/* feature — full-bleed, one work at a time, for showing rather than scanning. */
+:root{--cb-ink:#f4f4f4;--cb-mute:#9b9b9b;--cb-accent:#e08a72;--cb-bg:#121212}
+body{background:var(--cb-bg);color:var(--cb-ink)}
+.cb-profile{max-width:48rem;margin:0 auto;padding:4rem 1.5rem 2rem;text-align:center}
+.cb-profile-name{font-size:2rem;margin:0 0 .5rem}
+.cb-profile-meta{color:var(--cb-mute);margin:0 0 .75rem}
+.cb-profile-bio{max-width:34rem;margin:0 auto 1rem}
+.cb-profile-links{list-style:none;display:flex;gap:1.25rem;padding:0;margin:0;justify-content:center}
+.cb-profile-links a{color:var(--cb-accent)}
+.cb-catalogue{display:flex;flex-direction:column}
+.cb-work{min-height:90vh;display:flex;flex-direction:column;justify-content:center;
+  align-items:center;text-align:center;gap:.5rem;padding:3rem 1.5rem;
+  scroll-snap-align:start}
+.cb-catalogue{scroll-snap-type:y proximity}
+.cb-work-image{max-width:min(60rem,92vw);max-height:70vh;width:auto;height:auto;object-fit:contain}
+.cb-work-title{font-size:1.5rem;margin:1rem 0 0}
+.cb-work-meta{color:var(--cb-mute);margin:0}
+.cb-work-desc{max-width:34rem;margin:0}
+.cb-work-link{color:var(--cb-accent);text-decoration:none}
+.cb-work-references{list-style:none;padding:0;margin:.5rem 0 0;font-size:.85rem;color:var(--cb-mute)}
