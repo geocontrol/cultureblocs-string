@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalogue — CultureBlocs</title>
+<link id="template-css" rel="stylesheet" href="templates/grid.css">
+<style>
+  /* Structural only. Everything visual belongs to the template stylesheet,
+     so that a custom stylesheet can replace the look without fighting this. */
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.5 system-ui,sans-serif}
+  #status{padding:2rem;max-width:38rem;margin-inline:auto}
+  #status h1{font-size:1.1rem;margin:0 0 .5rem}
+  #status code{background:#f4f4f4;padding:.1rem .3rem;border-radius:3px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+  <div id="status" role="status" aria-live="polite"></div>
+  <main id="catalogue"></main>
+  <script type="module" src="catalogue.js"></script>
+</body>
+</html>
