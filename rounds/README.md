@@ -18,6 +18,21 @@ lineup. Ten gallery descriptions exceed the `note` field's
 2000-grapheme limit; rather than drop those ten galleries outright,
 their descriptions are truncated to the limit with a trailing ellipsis.
 
+**Artist search is incomplete by construction.** A stand's `billing`
+field (creditRef entries) is capped at 20 by the lexicon: one slot for
+the gallery, leaving room for only 19 artists. Measured against the
+live roster data: 5,506 artist credits across the 177 stands, of which
+2,897 are dropped to fit the cap — 106 of the 177 stands have more
+than 19 artists and lose the excess. The roster query orders by
+artist name, so the loss is alphabetically biased: a gallery showing
+167 artists keeps only its first 19 alphabetically and drops the
+other 148. `scripts/seed_frieze.py` prints the current drop count on
+every run (`rosters: N artist(s), N dropped...`) so this isn't a
+static number that goes stale — check the seed's own output for the
+figure as of the last run. Fixing this needs a lexicon change
+(`billing`'s `maxLength`, or a separate roster record), which is out
+of scope here; Rounds' artist search only ever sees the kept 19.
+
 Why local only: saying "this named gallery is exhibiting at this named
 fair" is a public claim about a third party who hasn't made it. It
 happens to be true — that's exactly why publishing it is tempting —
@@ -39,8 +54,15 @@ The current seed carries **deliberately absurd placeholder dates**
 aren't known yet. Re-run the seed with the real `--start`/`--end` once
 they're announced: it's idempotent, matching on `dedupeKey`, so this
 corrects the fair event and every stand in place rather than creating
-duplicates. `--fair` defaults to `frieze-london-2026`; `--string`
-defaults to `http://localhost:8100`.
+duplicates. Under the hood, the String's ingest endpoint is
+insert-or-ignore on `dedupeKey` — a re-POST of a record that already
+exists reports `duplicate` and changes nothing by itself — so the seed
+script follows every `duplicate` with a `PATCH /records/{id}` carrying
+the freshly computed body, which is what actually applies the
+correction and bumps the record's `revision`. The script reports
+this honestly, e.g. `event: 1 updated`, `stands: 177 updated`.
+`--fair` defaults to `frieze-london-2026`; `--string` defaults to
+`http://localhost:8100`.
 
 ## Running
 
