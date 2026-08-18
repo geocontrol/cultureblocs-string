@@ -113,7 +113,20 @@ function wire() {
   });
 }
 
-boot();
+boot().catch(e => {
+  // Storage can genuinely refuse: Safari private browsing, a blocked version
+  // upgrade, a corrupted database. Without this the shell renders but nothing
+  // is wired — an app that silently does nothing, which reads as broken
+  // rather than as failed. fillDays(), wire(), render(), and refresh() never
+  // ran, so nav clicks do nothing and the footer would otherwise still say
+  // "ready" — write the explanation directly into the static elements that
+  // exist before any script runs.
+  const msg = 'This device would not open local storage, so Rounds cannot '
+    + 'hold your plan. ' + (e?.message || '');
+  note('local storage unavailable');
+  const el = document.getElementById('stands');
+  if (el) el.textContent = msg;
+});
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
