@@ -118,9 +118,14 @@ async function saveCapture() {
                                 // not from the live capturingFor, which may
                                 // point at a different stand by the time this
                                 // await resolves
+
+  // Mint the id before clearing the box: crypto.randomUUID is only available
+  // in a secure context, and Rounds is served over plain http:// to a phone
+  // on the LAN in the field. If it throws, nothing has been cleared yet and
+  // the note is still safe in the textarea.
+  const id = crypto.randomUUID();
   el.value = '';
 
-  const id = crypto.randomUUID();
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const body = beadBody({
     note,
@@ -142,10 +147,14 @@ async function saveCapture() {
     // either, so it goes back in front of them.
     const cur = el.value;
     el.value = cur ? `${note}\n\n---\n${cur}` : note;
+    // Put the note back with the stand it was written for. Without this it
+    // reappears in whatever sheet is now open and the next Keep files it
+    // against the wrong gallery — worse than a visible failure.
+    capturingFor = owner;
     $('capture').classList.remove('hidden');
     $('capture-for').textContent =
-      'Could not hold this note on the device — it is back in the box. '
-      + (err?.message || '');
+      `Could not hold your note on ${owner ? owner.gallery : 'this stand'} — `
+      + 'it is back in the box. ' + (err?.message || '');
     return false;
   }
 
