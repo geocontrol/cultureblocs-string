@@ -1,4 +1,8 @@
 /* feature — full-bleed, one work at a time, for showing rather than scanning. */
+/* Snap must live on the scrolling box. .cb-catalogue is an in-flow block with no
+   overflow, so the document is what scrolls — declaring it on the section does
+   nothing at all. */
+html{scroll-snap-type:y proximity}
 :root{--cb-ink:#f4f4f4;--cb-mute:#9b9b9b;--cb-accent:#e08a72;--cb-bg:#121212}
 body{background:var(--cb-bg);color:var(--cb-ink)}
 .cb-profile{max-width:48rem;margin:0 auto;padding:4rem 1.5rem 2rem;text-align:center}
@@ -11,7 +15,6 @@ body{background:var(--cb-bg);color:var(--cb-ink)}
 .cb-work{min-height:90vh;display:flex;flex-direction:column;justify-content:center;
   align-items:center;text-align:center;gap:.5rem;padding:3rem 1.5rem;
   scroll-snap-align:start}
-.cb-catalogue{scroll-snap-type:y proximity}
 .cb-work-image{max-width:min(60rem,92vw);max-height:70vh;width:auto;height:auto;object-fit:contain}
 .cb-work-title{font-size:1.5rem;margin:1rem 0 0}
 .cb-work-meta{color:var(--cb-mute);margin:0}

@@ -11,7 +11,7 @@ body{background:var(--cb-bg);color:var(--cb-ink)}
 .cb-catalogue{max-width:44rem;margin:0 auto;padding:0 1.25rem 4rem}
 .cb-work{display:grid;grid-template-columns:4rem 1fr;gap:.25rem 1rem;
   align-items:baseline;padding:1rem 0;border-bottom:1px solid var(--cb-line)}
-.cb-work-image{grid-row:span 4;width:4rem;height:4rem;object-fit:cover;
+.cb-work-image{grid-row:span 5;width:4rem;height:4rem;object-fit:cover;
   align-self:start;border-radius:3px;background:#f4f4f4}
 .cb-work-title{grid-column:2;font-size:1rem;margin:0}
 .cb-work-meta{grid-column:2;color:var(--cb-mute);font-size:.85rem;margin:0}
