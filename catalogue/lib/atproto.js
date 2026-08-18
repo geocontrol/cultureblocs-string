@@ -61,21 +61,34 @@ export async function resolveActor(actor, { fetchFn = fetch } = {}) {
 }
 
 /* Every page, not just the first. A catalogue silently truncated at 100 works
- * is worse than one that fails, because nobody notices the missing half. */
+ * is worse than one that fails, because nobody notices the missing half. That
+ * is also why hitting MAX_PAGES throws instead of returning a partial array:
+ * a plain array is indistinguishable from "this is everything," so a cap that
+ * exits quietly would do, two orders of magnitude later, exactly what this
+ * comment condemns at 100. */
 export async function fetchAllWorks(pds, did, { fetchFn = fetch } = {}) {
   const out = [];
   let cursor = '';
   let seen = null;
-  for (let page = 0; page < MAX_PAGES; page++) {
+  let page;
+  for (page = 0; page < MAX_PAGES; page++) {
     const url = `${pds}/xrpc/com.atproto.repo.listRecords`
       + `?repo=${encodeURIComponent(did)}&collection=${WORK_NSID}&limit=${PAGE_LIMIT}`
       + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
     const body = await getJson(fetchFn, url);
-    out.push(...(body.records || []));
     const next = body.cursor || '';
-    if (!next || next === seen) break;
+    // Detect a repeated cursor before accumulating this page's records, not
+    // after — otherwise a stuck PDS yields one page of duplicates.
+    if (next && next === seen) break;
+    out.push(...(body.records || []));
+    if (!next) break;
     seen = next;
     cursor = next;
+  }
+  if (page === MAX_PAGES) {
+    throw new Error(
+      `this repository has more than ${MAX_PAGES * PAGE_LIMIT} works; ` +
+      `the catalogue cannot show them all`);
   }
   return out.sort((a, b) =>
     String(b.value?.createdAt || '').localeCompare(String(a.value?.createdAt || '')));
@@ -88,7 +101,11 @@ export async function fetchProfile(pds, did, { fetchFn = fetch } = {}) {
     + `?repo=${encodeURIComponent(did)}&collection=${PROFILE_NSID}&rkey=self`;
   try {
     return await getJson(fetchFn, url);
-  } catch {
-    return null;
+  } catch (e) {
+    // A creator may simply never have written a profile — that is normal, and the
+    // catalogue falls back to the handle. Anything else is a real fault and must
+    // not be disguised as an empty profile.
+    if (e.status === 404 || e.status === 400) return null;
+    throw e;
   }
 }

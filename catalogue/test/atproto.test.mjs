@@ -70,9 +70,51 @@ test('fetchAllWorks sorts newest first', async () => {
   assert.deepEqual(out.map(r => r.uri), ['b', 'c', 'a']);
 });
 
+test('fetchAllWorks threads each cursor into the next request', async () => {
+  const seenUrls = [];
+  const pages = [
+    { records: [{ uri: 'at://x/1' }], cursor: 'c1' },
+    { records: [{ uri: 'at://x/2' }], cursor: 'c2' },
+    { records: [{ uri: 'at://x/3' }] },
+  ];
+  let i = 0;
+  const fetchFn = async (url) => {
+    seenUrls.push(url);
+    return { ok: true, status: 200, json: async () => pages[i++] };
+  };
+  const out = await fetchAllWorks('https://pds.example', 'did:plc:abc', { fetchFn });
+  assert.equal(out.length, 3);
+  assert.ok(!seenUrls[0].includes('cursor='), 'first request carries no cursor');
+  assert.ok(seenUrls[1].includes('cursor=c1'), 'second request must carry the first cursor');
+  assert.ok(seenUrls[2].includes('cursor=c2'), 'third request must carry the second cursor');
+});
+
+test('fetchAllWorks throws rather than silently truncating when the repo exceeds the page cap', async () => {
+  // A cap that exits quietly at 5,000 works would do exactly what the
+  // function's own "silently truncated at 100" comment condemns, just two
+  // orders of magnitude later. It must throw, not return a partial array.
+  let i = 0;
+  const fetchFn = async () => ({ ok: true, status: 200, json: async () => ({
+    records: [{ uri: `at://x/${i}` }], cursor: `c${i++}` }) });
+  await assert.rejects(() => fetchAllWorks('https://pds.example', 'did:plc:abc', { fetchFn }),
+    /more than \d+ works/);
+});
+
 test('fetchProfile returns null when there is no profile record', async () => {
   const fetchFn = async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => 'nope' });
   assert.equal(await fetchProfile('https://pds.example', 'did:plc:abc', { fetchFn }), null);
+});
+
+test('fetchProfile returns null for a 400 RecordNotFound response', async () => {
+  // Some PDS implementations answer a missing record with 400 RecordNotFound
+  // rather than 404 — that must also read as "no profile", not a fault.
+  const fetchFn = async () => ({ ok: false, status: 400, json: async () => ({}), text: async () => 'RecordNotFound' });
+  assert.equal(await fetchProfile('https://pds.example', 'did:plc:abc', { fetchFn }), null);
+});
+
+test('fetchProfile propagates a real fault instead of disguising it as no profile', async () => {
+  const fetchFn = async () => ({ ok: false, status: 500, json: async () => ({}), text: async () => 'internal error' });
+  await assert.rejects(() => fetchProfile('https://pds.example', 'did:plc:abc', { fetchFn }), /500/);
 });
 
 test('fetchProfile returns the record when present', async () => {
