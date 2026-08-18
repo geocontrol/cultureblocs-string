@@ -77,6 +77,18 @@ def test_stand_dedupe_key_is_stable_and_gallery_scoped():
     k2, _ = stand_lineup(ROW, "spine://records/fair1", "frieze-london-2026", [], "2027-01-01T00:00:00Z")
     assert k1 == k2 == "frieze:frieze-london-2026:stand:42"
 
+    # Two galleries must never collide: the key is what makes re-seeding
+    # idempotent, and a collision would silently overwrite one stand with
+    # another on the next run.
+    other, _ = stand_lineup(dict(ROW, gallery_id=43, name="Another Gallery"),
+                            "spine://records/fair1", "frieze-london-2026", [], NOW)
+    assert other != k1
+    assert other == "frieze:frieze-london-2026:stand:43"
+
+    # And the same gallery at a different fair is a different stand.
+    elsewhere, _ = stand_lineup(ROW, "spine://records/fair2", "photo-london-2026", [], NOW)
+    assert elsewhere != k1
+
 
 def test_artists_become_additional_billing_entries():
     _, body = stand_lineup(ROW, "spine://records/fair1", "frieze-london-2026",
@@ -97,6 +109,17 @@ def test_stand_with_no_section_still_maps():
 
 def test_empty_description_is_omitted_not_blank():
     row = dict(ROW, description="")
+    _, body = stand_lineup(row, "spine://records/fair1", "frieze-london-2026", [], NOW)
+    assert "note" not in body
+
+
+def test_description_becomes_the_note():
+    _, body = stand_lineup(ROW, "spine://records/fair1", "frieze-london-2026", [], NOW)
+    assert body["note"] == "A London gallery founded in 2004."
+
+
+def test_whitespace_only_description_is_omitted():
+    row = dict(ROW, description="   \n  ")
     _, body = stand_lineup(row, "spine://records/fair1", "frieze-london-2026", [], NOW)
     assert "note" not in body
 
