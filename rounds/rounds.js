@@ -50,14 +50,18 @@ async function refresh() {
       await store.cacheStands(db, records);
       stands = records.map(standModel);
       render();
-      note(`${stands.length} stands cached`);
+      netNote(`${stands.length} stands cached`);
     }
   } catch {
-    note('offline — using the cached plan');   // expected, not an error
+    netNote('offline — using the cached plan');   // expected, not an error
   }
 }
 
 function note(msg) { $('queue-status').textContent = msg; }
+// Separate channel from note(): the footer's queue-status is the only place
+// that tells someone their note survived, so the stands/fair fetch status
+// must not be able to clobber it by finishing last.
+function netNote(msg) { $('net-status').textContent = msg; }
 
 function standRow(s) {
   const on = isPlanned(plan, s.id);
@@ -73,7 +77,19 @@ function standRow(s) {
 
 let capturingFor = null;
 
-function openCapture(id) {
+async function openCapture(id) {
+  // Tapping ✎ elsewhere with a note in progress must not destroy it. The sheet
+  // has no backdrop and the list stays tappable, so this is an ordinary slip
+  // while walking the hall — and a note made at a fair is the only copy there
+  // is. Keep it rather than asking; a confirm dialog here is another way to
+  // lose it.
+  if (!$('capture').classList.contains('hidden') && $('capture-note').value.trim()) {
+    const saved = await saveCapture();
+    // saveCapture failed to hold the in-progress note: it left the sheet open
+    // with the text intact and said so. Don't paper over that by clearing the
+    // textarea for a different stand.
+    if (!saved) return;
+  }
   const s = stands.find(x => x.id === id);
   capturingFor = s || null;
   $('capture-for').textContent = s ? `Note on ${s.gallery}` : 'Note';
@@ -84,7 +100,7 @@ function openCapture(id) {
 
 async function saveCapture() {
   const note = $('capture-note').value.trim();
-  if (!note) { $('capture').classList.add('hidden'); return; }
+  if (!note) { $('capture').classList.add('hidden'); return true; }
   const id = crypto.randomUUID();
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const body = beadBody({
@@ -92,17 +108,28 @@ async function saveCapture() {
     standUri: capturingFor ? `spine://records/${capturingFor.id}` : null,
     fairSlug: settings.fairSlug || 'frieze-london-2026',
   }, now);
-  await store.queueBead(db, {
-    dedupeKey: makeDedupeKey(id),
-    type: 'com.cultureblocs.bead',
-    sourceApp: 'rounds',
-    createdAt: now,
-    body,
-  });
+  try {
+    await store.queueBead(db, {
+      dedupeKey: makeDedupeKey(id),
+      type: 'com.cultureblocs.bead',
+      sourceApp: 'rounds',
+      createdAt: now,
+      body,
+    });
+  } catch (err) {
+    // The text is still in the textarea and the sheet is still open, so the
+    // note is not lost — but silence would let someone close the tab believing
+    // it was saved.
+    $('capture-for').textContent =
+      'Could not hold this note on the device — keep this screen open. '
+      + (err?.message || '');
+    return false;
+  }
   $('capture').classList.add('hidden');
   capturingFor = null;
   await updateQueue();
   flushQueue();          // best-effort; it stays queued if the String is away
+  return true;
 }
 
 async function updateQueue() {
@@ -120,8 +147,8 @@ async function flushQueue() {
     const accepted = await flush(settings.stringUrl, settings.token, q);
     if (accepted.length) {
       await store.clearQueued(db, accepted);
-      note(`${accepted.length} note(s) delivered`);
     }
+    await updateQueue();      // always: a partial flush must show what is still held
   } catch {
     note(`${q.length} note(s) held — the String is not reachable`);
   }
@@ -169,7 +196,7 @@ function wire() {
 
   document.addEventListener('click', async e => {
     const noteBtn = e.target.closest('.note-btn');
-    if (noteBtn) { openCapture(noteBtn.dataset.note); return; }
+    if (noteBtn) { await openCapture(noteBtn.dataset.note); return; }
     const btn = e.target.closest('.mark');
     if (!btn) return;
     plan = togglePlanned(plan, btn.dataset.id, day);
