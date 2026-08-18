@@ -81,3 +81,206 @@ def stand_lineup(row: dict, event_uri: str, fair_slug: str,
         body["note"] = note
 
     return f"frieze:{fair_slug}:stand:{row['gallery_id']}", body
+
+
+import argparse
+import json
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+import uuid
+
+PG_CONTAINER = "artworld-postgres-1"
+PG_USER = "artworld"
+PG_DB = "artworld"
+
+
+def _psql(sql: str) -> list[dict]:
+    """Run a query in Artworld's Postgres and return rows as dicts.
+
+    Results come back as one JSON object per line via row_to_json, so
+    descriptions containing quotes, pipes or newlines survive intact — a
+    delimiter-separated format would not.
+    """
+    proc = subprocess.run(
+        ["docker", "exec", PG_CONTAINER, "psql", "-U", PG_USER, "-d", PG_DB,
+         "-At", "-c", sql],
+        capture_output=True, text=True)
+    if proc.returncode != 0:
+        sys.exit(f"psql failed: {proc.stderr.strip()}")
+    rows = []
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if line:
+            rows.append(json.loads(line))
+    return rows
+
+
+def read_fair(slug: str) -> dict:
+    rows = _psql(f"""
+        select row_to_json(t) from (
+          select slug, name, city, country, edition_year,
+                 start_date::text, end_date::text
+          from fair where slug = '{slug}'
+        ) t;""")
+    if not rows:
+        sys.exit(f"no fair with slug {slug!r} in Artworld")
+    return rows[0]
+
+
+def read_stands(slug: str) -> list[dict]:
+    return _psql(f"""
+        select row_to_json(t) from (
+          select g.id as gallery_id, g.canonical_name as name,
+                 p.section, p.booth, coalesce(g.description, '') as description
+          from fair_participation p
+          join fair f on f.id = p.fair_id
+          join gallery g on g.id = p.gallery_id
+          where f.slug = '{slug}'
+          order by g.canonical_name
+        ) t;""")
+
+
+def read_rosters(slug: str) -> dict[int, list[str]]:
+    """Artist names per gallery, for the galleries at this fair."""
+    rows = _psql(f"""
+        select row_to_json(t) from (
+          select ga.gallery_id, a.display_name as artist
+          from gallery_artist ga
+          join artist a on a.id = ga.artist_id
+          join fair_participation p on p.gallery_id = ga.gallery_id
+          join fair f on f.id = p.fair_id
+          where f.slug = '{slug}'
+          order by ga.gallery_id, a.display_name
+        ) t;""")
+    out: dict[int, list[str]] = {}
+    for r in rows:
+        out.setdefault(r["gallery_id"], []).append(r["artist"])
+    return out
+
+
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "brick")
+
+
+def _assert_local(string_url: str) -> None:
+    """Refuse to seed anything that is not demonstrably a local String.
+
+    These records name real galleries as exhibiting at a real fair. They are
+    true and unattested, which is why they stay on this machine. A mistyped
+    --string must not be able to push them somewhere public.
+    """
+    from urllib.parse import urlparse
+    host = (urlparse(string_url).hostname or "").lower()
+    if host in LOCAL_HOSTS or host.endswith(".ts.net"):
+        return
+    sys.exit(
+        f"refusing to seed {string_url!r}: seeded fair data is Tier 0 and must "
+        f"stay local. Allowed hosts: {', '.join(LOCAL_HOSTS)}, or a tailnet "
+        f"(*.ts.net).")
+
+
+def post_records(string_url: str, token: str | None,
+                 records: list[dict]) -> dict:
+    """Ingest in batches. The endpoint accepts 500; 100 keeps errors readable."""
+    counts = {"created": 0, "duplicate": 0, "invalid": 0}
+    for i in range(0, len(records), 100):
+        chunk = records[i:i + 100]
+        data = json.dumps({"records": chunk}).encode()
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(
+            f"{string_url.rstrip('/')}/records", data=data,
+            headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                body = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            sys.exit(f"POST /records failed: {e.code}\n  {e.read().decode()[:500]}")
+        for res in body.get("results", []):
+            counts[res["status"]] = counts.get(res["status"], 0) + 1
+            if res["status"] == "invalid":
+                print(f"  invalid {res['dedupeKey']}: {res.get('problems')}")
+    return counts
+
+
+def main() -> None:
+    import os
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--fair", default="frieze-london-2026")
+    p.add_argument("--start", required=True, help="first day, YYYY-MM-DD")
+    p.add_argument("--end", required=True, help="last day, YYYY-MM-DD")
+    p.add_argument("--string", default=os.environ.get("STRING_URL",
+                                                      "http://localhost:8100"))
+    p.add_argument("--token", default=os.environ.get("STRING_TOKEN"))
+    p.add_argument("--dry-run", action="store_true")
+    args = p.parse_args()
+
+    _assert_local(args.string)
+    now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    fair = read_fair(args.fair)
+    if fair.get("start_date") and fair.get("end_date"):
+        print(f"note: Artworld now has dates for {args.fair} "
+              f"({fair['start_date']} to {fair['end_date']}); "
+              f"using the --start/--end you gave instead.")
+
+    ev_key, ev_body = fair_event(fair, args.start, args.end, now)
+    days = day_list(args.start, args.end)
+    print(f"{fair['name']}: {len(days)} day(s), {args.start} to {args.end}")
+
+    # The event must exist before the stands can reference it, so it is
+    # ingested first and its id read back to build the reference.
+    ev_rec = {"dedupeKey": ev_key, "type": ev_body["$type"],
+              "sourceApp": SOURCE_APP, "createdAt": now, "body": ev_body}
+
+    stands = read_stands(args.fair)
+    rosters = read_rosters(args.fair)
+    print(f"  {len(stands)} exhibitor(s), "
+          f"{sum(1 for s in stands if s.get('section'))} with a section, "
+          f"{len(rosters)} with a roster")
+
+    if args.dry_run:
+        print(json.dumps(ev_rec, indent=2)[:600])
+        k, b = stand_lineup(stands[0], "spine://records/<pending>",
+                            args.fair, rosters.get(stands[0]["gallery_id"], []), now)
+        print(json.dumps({"dedupeKey": k, "body": b}, indent=2)[:800])
+        print(f"(dry run — would ingest 1 event and {len(stands)} stands)")
+        return
+
+    ev_counts = post_records(args.string, args.token, [ev_rec])
+    print(f"  event: {ev_counts}")
+
+    event_id = _find_record_id(args.string, args.token, ev_key)
+    event_uri = f"spine://records/{event_id}"
+
+    records = []
+    for row in stands:
+        key, body = stand_lineup(row, event_uri, args.fair,
+                                 rosters.get(row["gallery_id"], []), now)
+        records.append({"dedupeKey": key, "type": body["$type"],
+                        "sourceApp": SOURCE_APP, "createdAt": now,
+                        "body": body})
+    print(f"  stands: {post_records(args.string, args.token, records)}")
+
+
+def _find_record_id(string_url: str, token: str | None, dedupe_key: str) -> str:
+    """The ingest response carries the id, but a re-run reports `duplicate`
+    with the existing id, so read it back rather than assuming."""
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    req = urllib.request.Request(
+        f"{string_url.rstrip('/')}/records?type=community.lexicon.calendar.event&limit=500",
+        headers=headers)
+    with urllib.request.urlopen(req, timeout=30) as r:
+        rows = json.loads(r.read())
+    rows = rows if isinstance(rows, list) else rows.get("records", [])
+    for row in rows:
+        # Verified against the running String: the API returns camelCase.
+        if row.get("dedupeKey") == dedupe_key:
+            return row["id"]
+    sys.exit(f"could not find the seeded event {dedupe_key!r} after ingest")
+
+
+if __name__ == "__main__":
+    main()
