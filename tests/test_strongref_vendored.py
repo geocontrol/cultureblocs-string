@@ -58,13 +58,22 @@ def test_rsvp_without_a_cid_is_rejected():
 
 
 def test_vendored_lexicon_is_not_publishable():
-    """publish_lexicons.py allowlists com.cultureblocs.* only. Assert that
-    holds for this file, so a future change to that filter cannot silently
-    start claiming authority over someone else's namespace."""
-    doc = json.loads(
-        (ROOT / "lexicons/com/atproto/repo/strongRef.json").read_text())
-    assert doc["id"] == "com.atproto.repo.strongRef"
-    assert not doc["id"].startswith("com.cultureblocs.")
+    """The publisher must never claim authority over someone else's namespace.
+
+    This exercises publish_lexicons.load_lexicons() itself rather than
+    re-reading the vendored file, so it fails if either protection regresses:
+    LEX_DIR widening beyond lexicons/com/cultureblocs/, or the id prefix
+    filter loosening.
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import publish_lexicons
+
+    ids = [d["id"] for d in publish_lexicons.load_lexicons()]
+    assert ids, "expected some publishable documents"
+    assert "com.atproto.repo.strongRef" not in ids, \
+        "a vendored lexicon must never be published under this domain's authority"
+    assert all(i.startswith("com.cultureblocs.") for i in ids), \
+        f"only com.cultureblocs.* may publish; got {sorted(set(ids))}"
 
 
 if __name__ == "__main__":
