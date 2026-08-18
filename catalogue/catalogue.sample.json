@@ -1,0 +1,35 @@
+{
+  "profile": {
+    "value": {
+      "$type": "com.cultureblocs.creative.profile",
+      "name": "Fixture Creator",
+      "bio": "A baked profile used to check the catalogue renders offline.",
+      "disciplines": ["drawing", "code"],
+      "based": { "name": "London" },
+      "links": [{ "uri": "https://www.cultureblocs.com/", "title": "cultureblocs" }],
+      "createdAt": "2026-01-01T00:00:00Z"
+    }
+  },
+  "works": [
+    {
+      "uri": "at://did:plc:fixture/com.cultureblocs.creative.work/one",
+      "value": {
+        "$type": "com.cultureblocs.creative.work",
+        "title": "First Fixture Work",
+        "description": "Ink on paper.",
+        "completionDate": "2024",
+        "referenceUrl": "https://www.cultureblocs.com/",
+        "createdAt": "2026-02-01T00:00:00Z"
+      }
+    },
+    {
+      "uri": "at://did:plc:fixture/com.cultureblocs.creative.work/two",
+      "value": {
+        "$type": "com.cultureblocs.creative.work",
+        "title": "Second Fixture Work",
+        "completionDate": "ongoing",
+        "createdAt": "2026-01-15T00:00:00Z"
+      }
+    }
+  ]
+}
