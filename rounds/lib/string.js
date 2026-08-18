@@ -30,19 +30,28 @@ export async function fetchFair(url, token) {
   return rows.find(x => x.sourceApp === 'seed-frieze') || null;
 }
 
-/* Returns the dedupeKeys the String accepted. A `duplicate` counts as
- * accepted: the bead is already there, so holding it locally would mean
- * flushing it forever. */
+/* Posts records to the String in chunks of 100. The endpoint caps a batch at
+ * 500, but one malformed record 422s the *entire* request it's part of — a
+ * single 500-record POST would let one bad record take 499 good ones down
+ * with it. 100 keeps that blast radius small, matching scripts/seed_frieze.py.
+ *
+ * Returns every result the String reported (status + problems, per record),
+ * not just the accepted ones — callers need to see `invalid` results to
+ * surface them rather than silently holding a note that will never go
+ * through. */
 export async function flush(url, token, records) {
   if (!records.length) return [];
-  const r = await fetch(`${url.replace(/\/$/, '')}/records`, {
-    method: 'POST',
-    headers: headers(token, true),
-    body: JSON.stringify({ records }),
-  });
-  if (!r.ok) throw new Error(`the String answered ${r.status}`);
-  const body = await r.json();
-  return (body.results || [])
-    .filter(x => x.status === 'created' || x.status === 'duplicate')
-    .map(x => x.dedupeKey);
+  const results = [];
+  for (let i = 0; i < records.length; i += 100) {
+    const chunk = records.slice(i, i + 100);
+    const r = await fetch(`${url.replace(/\/$/, '')}/records`, {
+      method: 'POST',
+      headers: headers(token, true),
+      body: JSON.stringify({ records: chunk }),
+    });
+    if (!r.ok) throw new Error(`the String answered ${r.status}`);
+    const body = await r.json();
+    results.push(...(body.results || []));
+  }
+  return results;
 }
