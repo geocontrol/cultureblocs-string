@@ -131,6 +131,25 @@ def test_stand_validates():
     assert not problems, problems
 
 
+def test_long_description_is_truncated_not_dropped():
+    """Ten real Frieze galleries have descriptions over the 2000-grapheme
+    limit. Before this, those records failed validation and the galleries
+    disappeared from the fair entirely."""
+    row = dict(ROW, description="x" * 3684)
+    _, body = stand_lineup(row, "spine://records/fair1", "frieze-london-2026", [], NOW)
+    assert len(body["note"]) <= 2000
+    assert body["note"].endswith("…"), "truncation must be visible"
+    problems = registry().validate_record("com.cultureblocs.venue.lineup", body)
+    assert not problems, problems
+
+
+def test_description_at_exactly_the_limit_is_untouched():
+    row = dict(ROW, description="x" * 2000)
+    _, body = stand_lineup(row, "spine://records/fair1", "frieze-london-2026", [], NOW)
+    assert body["note"] == "x" * 2000
+    assert not body["note"].endswith("…")
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as _dt
 
 SOURCE_APP = "seed-frieze"
+NOTE_MAX = 2000          # com.cultureblocs.venue.lineup.note maxGraphemes
 
 
 def day_list(start: str, end: str) -> list[str]:
@@ -78,6 +79,13 @@ def stand_lineup(row: dict, event_uri: str, fair_slug: str,
     }
     note = (row.get("description") or "").strip()
     if note:
+        # venue.lineup.note is capped at maxGraphemes 2000, and ten of Frieze's
+        # gallery descriptions exceed it. Without this, those galleries fail
+        # validation and vanish from the fair entirely — a truncated description
+        # is a far smaller loss than a missing exhibitor. The ellipsis keeps the
+        # truncation visible rather than pretending the text simply ends there.
+        if len(note) > NOTE_MAX:
+            note = note[:NOTE_MAX - 1].rstrip() + "…"
         body["note"] = note
 
     return f"frieze:{fair_slug}:stand:{row['gallery_id']}", body
