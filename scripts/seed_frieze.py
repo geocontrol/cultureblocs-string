@@ -93,6 +93,7 @@ def stand_lineup(row: dict, event_uri: str, fair_slug: str,
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import urllib.error
@@ -188,10 +189,41 @@ def _assert_local(string_url: str) -> None:
         f"(*.ts.net).")
 
 
+def _patch_record(string_url: str, token: str | None, rid: str, fields: dict) -> None:
+    """PATCH shallow-merges `fields` into the record's body — see string/app/main.py."""
+    data = json.dumps({"fields": fields}).encode()
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(
+        f"{string_url.rstrip('/')}/records/{rid}", data=data,
+        headers=headers, method="PATCH")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            r.read()
+    except urllib.error.HTTPError as e:
+        sys.exit(f"PATCH /records/{rid} failed: {e.code}\n  {e.read().decode()[:500]}")
+
+
+def _summarize(counts: dict) -> str:
+    parts = [f"{counts[k]} {k}" for k in ("created", "updated", "invalid") if counts.get(k)]
+    return ", ".join(parts) if parts else "no changes"
+
+
 def post_records(string_url: str, token: str | None,
                  records: list[dict]) -> dict:
-    """Ingest in batches. The endpoint accepts 500; 100 keeps errors readable."""
-    counts = {"created": 0, "duplicate": 0, "invalid": 0}
+    """Ingest in batches (the endpoint accepts 500; 100 keeps errors readable).
+
+    db.py's upsert() is insert-or-ignore on dedupeKey, so a record the String
+    already has comes back `duplicate` and is otherwise untouched. That is
+    correct for beads (mint facts) but wrong for a re-seed meant to correct
+    fair dates or gallery data in place: without a follow-up write, re-running
+    this script against 177 live stands would silently do nothing. So a
+    `duplicate` gets a PATCH with the freshly computed body — the ingest
+    response carries the existing record's `id` even when it reports
+    `duplicate`, so no extra lookup is needed.
+    """
+    counts = {"created": 0, "updated": 0, "invalid": 0}
     for i in range(0, len(records), 100):
         chunk = records[i:i + 100]
         data = json.dumps({"records": chunk}).encode()
@@ -206,10 +238,16 @@ def post_records(string_url: str, token: str | None,
                 body = json.loads(r.read())
         except urllib.error.HTTPError as e:
             sys.exit(f"POST /records failed: {e.code}\n  {e.read().decode()[:500]}")
-        for res in body.get("results", []):
-            counts[res["status"]] = counts.get(res["status"], 0) + 1
-            if res["status"] == "invalid":
+        for rec, res in zip(chunk, body.get("results", [])):
+            status = res["status"]
+            if status == "invalid":
+                counts["invalid"] += 1
                 print(f"  invalid {res['dedupeKey']}: {res.get('problems')}")
+            elif status == "created":
+                counts["created"] += 1
+            elif status == "duplicate":
+                _patch_record(string_url, token, res["id"], rec["body"])
+                counts["updated"] += 1
     return counts
 
 
@@ -224,6 +262,10 @@ def main() -> None:
     p.add_argument("--token", default=os.environ.get("STRING_TOKEN"))
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
+
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.fair):
+        sys.exit(f"invalid --fair slug {args.fair!r}: expected lowercase letters, "
+                 f"digits and hyphens only")
 
     _assert_local(args.string)
     now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -249,6 +291,18 @@ def main() -> None:
           f"{sum(1 for s in stands if s.get('section'))} with a section, "
           f"{len(rosters)} with a roster")
 
+    # billing[:20] in stand_lineup() keeps 1 gallery entry + 19 artists; any
+    # roster longer than that is silently truncated, alphabetically (the
+    # roster query orders by name), which biases which artists are
+    # search-findable in Rounds. A lexicon change is out of scope for this
+    # wave, so the loss is made visible here instead of staying silent.
+    total_artists = sum(len(a) for a in rosters.values())
+    dropped_artists = sum(max(0, len(a) - 19) for a in rosters.values())
+    capped_stands = sum(1 for a in rosters.values() if len(a) > 19)
+    print(f"  rosters: {total_artists} artist(s), {dropped_artists} dropped "
+          f"to fit the 20-entry billing limit "
+          f"({capped_stands} of {len(stands)} stands at the cap)")
+
     if args.dry_run:
         print(json.dumps(ev_rec, indent=2)[:600])
         k, b = stand_lineup(stands[0], "spine://records/<pending>",
@@ -258,7 +312,7 @@ def main() -> None:
         return
 
     ev_counts = post_records(args.string, args.token, [ev_rec])
-    print(f"  event: {ev_counts}")
+    print(f"  event: {_summarize(ev_counts)}")
 
     event_id = _find_record_id(args.string, args.token, ev_key)
     event_uri = f"spine://records/{event_id}"
@@ -270,7 +324,8 @@ def main() -> None:
         records.append({"dedupeKey": key, "type": body["$type"],
                         "sourceApp": SOURCE_APP, "createdAt": now,
                         "body": body})
-    print(f"  stands: {post_records(args.string, args.token, records)}")
+    stand_counts = post_records(args.string, args.token, records)
+    print(f"  stands: {_summarize(stand_counts)}")
 
 
 def _find_record_id(string_url: str, token: str | None, dedupe_key: str) -> str:
