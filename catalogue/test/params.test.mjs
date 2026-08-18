@@ -55,3 +55,16 @@ test('parseParams carries a valid css through and drops an invalid one', () => {
   assert.equal(parseParams('?actor=a&css=/t.css', ORIGIN).cssHref, '/t.css');
   assert.equal(parseParams('?actor=a&css=https://evil.example/t.css', ORIGIN).cssHref, null);
 });
+
+test('safeCssHref rejects a blob: URL that spoofs the trusted origin', () => {
+  // blob: URLs inherit the origin they embed, so `.origin` here is byte-identical
+  // to ORIGIN and the same-origin check alone does NOT reject it. Only the
+  // protocol check does. Without this test, deleting that check as "redundant"
+  // would go unnoticed.
+  assert.equal(safeCssHref('blob:https://www.cultureblocs.com/uuid', ORIGIN), null);
+});
+
+test('safeCssHref rejects filesystem: and file: schemes', () => {
+  assert.equal(safeCssHref('filesystem:https://www.cultureblocs.com/temporary/x.css', ORIGIN), null);
+  assert.equal(safeCssHref('file:///etc/passwd', ORIGIN), null);
+});
