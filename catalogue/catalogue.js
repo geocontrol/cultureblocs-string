@@ -52,9 +52,16 @@ async function boot() {
 
   let works = [], profile = null;
   try {
+    // The works are the catalogue; the profile is a header. atproto.js rightly
+    // rethrows a real profile fault rather than disguising it as "no profile",
+    // but that fault must not cost the visitor the works — spec §5: "a catalogue
+    // is about the works". So the policy that the profile is optional lives here.
     [works, profile] = await Promise.all([
       fetchAllWorks(pds, did),
-      fetchProfile(pds, did),
+      fetchProfile(pds, did).catch(e => {
+        console.warn('profile unavailable, falling back to the handle:', e.message);
+        return null;
+      }),
     ]);
   } catch (e) {
     status(`<h1>Could not load the catalogue</h1>
