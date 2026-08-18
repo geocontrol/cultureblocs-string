@@ -99,8 +99,17 @@ async function openCapture(id) {
 }
 
 async function saveCapture() {
-  const note = $('capture-note').value.trim();
+  const el = $('capture-note');
+  const note = el.value.trim();
   if (!note) { $('capture').classList.add('hidden'); return true; }
+
+  // Clear synchronously, before any await. queueBead crosses a real task
+  // boundary, so anything still readable in the textarea during that window
+  // can be read a second time by another tap and queued as a second bead —
+  // one note typed once becoming two on the network. Emptying the box first
+  // removes the window entirely; the text lives in `note` until it is safe.
+  el.value = '';
+
   const id = crypto.randomUUID();
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const body = beadBody({
@@ -108,6 +117,7 @@ async function saveCapture() {
     standUri: capturingFor ? `spine://records/${capturingFor.id}` : null,
     fairSlug: settings.fairSlug || 'frieze-london-2026',
   }, now);
+
   try {
     await store.queueBead(db, {
       dedupeKey: makeDedupeKey(id),
@@ -117,14 +127,15 @@ async function saveCapture() {
       body,
     });
   } catch (err) {
-    // The text is still in the textarea and the sheet is still open, so the
-    // note is not lost — but silence would let someone close the tab believing
-    // it was saved.
+    // Put the note back in the box. It is the only copy, and the user must be
+    // able to see it and try again.
+    el.value = note;
     $('capture-for').textContent =
       'Could not hold this note on the device — keep this screen open. '
       + (err?.message || '');
     return false;
   }
+
   $('capture').classList.add('hidden');
   capturingFor = null;
   await updateQueue();
