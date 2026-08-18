@@ -75,7 +75,28 @@ is. Pressing it twice for a day already saved creates nothing new
 (`dedupeKey` covers that too).
 
 That event record is saved locally, same as everything else in
-Rounds, until you publish it from Timeline.
+Rounds, until you publish it — and Timeline is **not** how you do
+that. Timeline's only publish control operates on strands
+(`strand-publish`); it has no publish affordance for a standalone
+record. The one route someone would actually find there — select the
+event, group it into a strand, publish the strand — *looks* like it
+works and doesn't: the strand publisher only carries beads and
+annotations into the strand (`BEAD_TYPES`), so a calendar event inside
+a strand is silently dropped, and the UI still shows the strand as
+published. You'd walk away believing your attendance is on the
+network when it never left the String.
+
+The route that actually publishes a standalone record like this one
+is the CLI, using a held identity:
+
+    python scripts/promote.py publish <record-id> --identity <name>
+
+Find `<record-id>` with `GET /records?type=community.lexicon.calendar.event`
+(it's the `id` on the row with `sourceApp: rounds`). This calls
+`POST /publish/{id}` directly rather than going through strand
+assembly, which is why it works for an event where the strand route
+doesn't. `--identity` names a publishing identity already held by the
+String (`PUT /identities/{name}`, or set up from Timeline).
 
 **The RSVP is not written here.** A `community.lexicon.calendar.rsvp`
 (`going`) points at its event with a `strongRef` — both an `at://` URI
@@ -83,8 +104,8 @@ and a CID, neither of which exists until the event has actually been
 published. Writing an RSVP against an unpublished event would mean
 inventing a CID: a lie in exactly the field this project relies on to
 make references tamper-evident. So the sequence is: save the event
-here, publish it from Timeline, then add the RSVP once the published
-record — and its real CID — exists.
+here, publish it with the command above, then add the RSVP once the
+published record — and its real CID — exists.
 
 ## Testing
 

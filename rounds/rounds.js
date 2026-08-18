@@ -232,7 +232,8 @@ async function saveGoing() {
   try {
     await flush(settings.stringUrl, settings.token, [rec]);
     $('going-status').textContent =
-      'Saved locally. Publish it from Timeline to share it, then add your RSVP.';
+      'Saved locally. To share it, publish the record with '
+      + 'scripts/promote.py publish <record-id> --identity <name>.';
   } catch {
     $('going-status').textContent =
       'Held — the String is not reachable. Try again when it is.';
