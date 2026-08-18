@@ -55,6 +55,13 @@ services:
     # http://localhost:8102 qualifies; a LAN IP does not — use Tailscale
     # HTTPS or open the file directly if accessing from another machine.
 
+  rounds:
+    image: nginx:alpine
+    ports: ["8107:80"]
+    volumes:
+      - ./rounds:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
   # -- later --------------------------------------------------------
   # pds:                              # official Bluesky PDS image
   #   image: ghcr.io/bluesky-social/pds:latest

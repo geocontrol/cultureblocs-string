@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rounds</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{--ink:#141414;--dim:#6b6b6b;--line:#e4e2db;--accent:#b5482e;--bg:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.5 system-ui,sans-serif;color:var(--ink);background:var(--bg);
+       padding-bottom:env(safe-area-inset-bottom)}
+  header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);
+         padding:.6rem .9rem;display:flex;gap:.6rem;align-items:center}
+  header h1{font-size:1rem;margin:0;flex:1}
+  nav{display:flex;gap:.25rem;border-bottom:1px solid var(--line);padding:0 .5rem}
+  nav button{flex:1;font:inherit;font-size:.85rem;padding:.6rem .3rem;border:0;
+             background:none;color:var(--dim);border-bottom:2px solid transparent}
+  nav button[aria-current="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+  main{padding:.9rem}
+  .hidden{display:none}
+  input[type=search],select,textarea{width:100%;font:inherit;padding:.55rem;
+    border:1px solid var(--line);border-radius:8px}
+  .section-title{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--dim);margin:1.2rem 0 .4rem}
+  .stand{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem 0;
+    border-bottom:1px solid var(--line)}
+  .stand .body{flex:1;min-width:0}
+  .stand .g{font-weight:600}
+  .stand .a{font-size:.85rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap}
+  .mark{font:inherit;border:1px solid var(--line);background:none;border-radius:8px;
+    padding:.3rem .6rem;cursor:pointer;color:var(--dim)}
+  .mark[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+  .status{color:var(--dim);font-size:.9rem}
+  footer{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);
+    padding:.5rem .9rem;font-size:.85rem;color:var(--dim)}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Rounds</h1>
+    <select id="day" aria-label="day"></select>
+  </header>
+  <nav>
+    <button id="tab-stands" aria-current="true">Stands</button>
+    <button id="tab-plan">Plan</button>
+    <button id="tab-fair">Fair</button>
+  </nav>
+
+  <main>
+    <section id="screen-stands">
+      <input type="search" id="q" placeholder="Search gallery or artist" autocomplete="off">
+      <div id="stands"></div>
+    </section>
+
+    <section id="screen-plan" class="hidden">
+      <p id="plan-empty" class="status hidden">Nothing planned for this day yet.</p>
+      <div id="plan"></div>
+    </section>
+
+    <section id="screen-fair" class="hidden">
+      <p id="fair-summary" class="status"></p>
+    </section>
+  </main>
+
+  <footer><span id="queue-status">ready</span></footer>
+  <script type="module" src="rounds.js"></script>
+</body>
+</html>
