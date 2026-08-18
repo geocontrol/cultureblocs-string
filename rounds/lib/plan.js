@@ -6,6 +6,8 @@
 
 const SECTION_TAG = 'section:';
 
+const str = v => (typeof v === 'string' ? v : '');
+
 export function standModel(record) {
   const b = record?.body || {};
   const billing = Array.isArray(b.billing) ? b.billing : [];
@@ -14,10 +16,10 @@ export function standModel(record) {
   const section = tags.find(t => typeof t === 'string' && t.startsWith(SECTION_TAG));
   return {
     id: record?.id || '',
-    gallery: gallery.name || '',
-    artists: billing.filter(x => x?.role === 'artist').map(x => x.name).filter(Boolean),
+    gallery: str(gallery.name),
+    artists: billing.filter(x => x?.role === 'artist').map(x => str(x.name)).filter(Boolean),
     section: section ? section.slice(SECTION_TAG.length) : '',
-    note: b.note || '',
+    note: str(b.note),
   };
 }
 
@@ -50,7 +52,10 @@ export function search(stands, query) {
 export function togglePlanned(plan, id, day) {
   const next = { ...(plan || {}) };
   const current = next[id];
-  if (current && current.day === day) {
+  // No day selected ("All days") means an unqualified toggle: tapping a
+  // planned stand un-plans it. Only a DIFFERENT specific day is a move —
+  // the user changing their mind about when, not whether.
+  if (current && (day == null || current.day === day)) {
     delete next[id];
     return next;
   }

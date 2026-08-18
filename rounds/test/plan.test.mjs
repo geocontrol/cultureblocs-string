@@ -105,3 +105,41 @@ test('plannedFor returns only the stands planned for that day', () => {
   assert.deepEqual(plannedFor(stands, plan, '2026-10-16').map(s => s.id), ['1']);
   assert.deepEqual(plannedFor(stands, plan, null).map(s => s.id), ['1', '2']);
 });
+
+test('togglePlanned with no day un-plans a stand planned for a specific day', () => {
+  // Reachable from the "All days" view, where the UI passes day = null.
+  // A mark button that will not unmark is a bug.
+  const one = togglePlanned({}, 'a1', '2026-10-16');
+  const off = togglePlanned(one, 'a1', null);
+  assert.equal(isPlanned(off, 'a1'), false);
+});
+
+test('togglePlanned day matrix', () => {
+  const planned16 = togglePlanned({}, 'a1', '2026-10-16');
+  // same day -> un-plans
+  assert.equal(isPlanned(togglePlanned(planned16, 'a1', '2026-10-16'), 'a1'), false);
+  // different day -> moves, still planned
+  const moved = togglePlanned(planned16, 'a1', '2026-10-17');
+  assert.equal(isPlanned(moved, 'a1'), true);
+  assert.equal(moved['a1'].day, '2026-10-17');
+  // no day -> un-plans
+  assert.equal(isPlanned(togglePlanned(planned16, 'a1', null), 'a1'), false);
+  // undefined behaves as null
+  assert.equal(isPlanned(togglePlanned(planned16, 'a1', undefined), 'a1'), false);
+  // planned with no day, toggled with no day -> un-plans
+  const plannedNull = togglePlanned({}, 'a1', null);
+  assert.equal(isPlanned(togglePlanned(plannedNull, 'a1', null), 'a1'), false);
+});
+
+test('standModel coerces non-string names so downstream search cannot throw', () => {
+  const m = standModel({ id: 'x', body: { billing: [
+    { name: 42, role: 'gallery' },
+    { name: { nope: 1 }, role: 'artist' },
+    { name: 'Real Artist', role: 'artist' },
+  ], tags: ['section:Focus'], note: 99 } });
+  assert.equal(m.gallery, '');
+  assert.deepEqual(m.artists, ['Real Artist']);
+  assert.equal(m.note, '');
+  assert.doesNotThrow(() => search([m], 'real'));
+  assert.deepEqual(search([m], 'real').map(s => s.id), ['x']);
+});
