@@ -30,6 +30,7 @@ function fillDays() {
   $('day').innerHTML = `<option value="">All days</option>`
     + days.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
   $('day').value = day || '';
+  $('going-day').innerHTML = days.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
 }
 
 async function refresh() {
@@ -205,6 +206,39 @@ async function doFlush() {
   }
 }
 
+/* Your own event record for the fair. You are not claiming to be Frieze —
+ * you are recording that a public occasion exists and that you are attending
+ * it, both of which are yours to say. The RSVP that points at this event can
+ * only be written after the event is PUBLISHED, because a strongRef needs the
+ * published record's at:// uri and its cid, and fabricating a cid would be a
+ * lie in the field this project relies on for tamper-evidence. */
+async function saveGoing() {
+  const chosen = $('going-day').value;
+  if (!chosen) { $('going-status').textContent = 'Choose a day first.'; return; }
+  const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  const rec = {
+    dedupeKey: `rounds:going:${settings.fairSlug || 'frieze-london-2026'}:${chosen}`,
+    type: 'community.lexicon.calendar.event',
+    sourceApp: 'rounds',
+    createdAt: now,
+    body: {
+      $type: 'community.lexicon.calendar.event',
+      name: settings.fairName || 'Frieze London 2026',
+      createdAt: now,
+      startsAt: `${chosen}T11:00:00Z`,
+      endsAt: `${chosen}T19:00:00Z`,
+    },
+  };
+  try {
+    await flush(settings.stringUrl, settings.token, [rec]);
+    $('going-status').textContent =
+      'Saved locally. Publish it from Timeline to share it, then add your RSVP.';
+  } catch {
+    $('going-status').textContent =
+      'Held — the String is not reachable. Try again when it is.';
+  }
+}
+
 function render() {
   $('screen-stands').classList.toggle('hidden', screen !== 'stands');
   $('screen-plan').classList.toggle('hidden', screen !== 'plan');
@@ -243,6 +277,7 @@ function wire() {
   $('day').onchange = e => { day = e.target.value || null; render(); };
   $('capture-cancel').onclick = () => { $('capture').classList.add('hidden'); capturingFor = null; };
   $('capture-save').onclick = saveCapture;
+  $('going-save').onclick = saveGoing;
   window.addEventListener('online', flushQueue);
 
   document.addEventListener('click', async e => {

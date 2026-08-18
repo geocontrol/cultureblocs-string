@@ -1,6 +1,6 @@
 // Cache the shell so Rounds opens in a hall with no connection. Bump CACHE
 // whenever a shell file changes, or browsers will serve the old one.
-const CACHE = 'rounds-2';
+const CACHE = 'rounds-3';
 const SHELL = ['./', './index.html', './rounds.js', './lib/plan.js',
                './lib/records.js', './lib/store.js', './lib/string.js',
                './manifest.webmanifest'];
