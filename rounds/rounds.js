@@ -76,6 +76,7 @@ function standRow(s) {
 }
 
 let capturingFor = null;
+let captureGen = 0;
 
 async function openCapture(id) {
   // Tapping ✎ elsewhere with a note in progress must not destroy it. The sheet
@@ -90,6 +91,9 @@ async function openCapture(id) {
     // textarea for a different stand.
     if (!saved) return;
   }
+  captureGen++;              // this sheet is now the current one; any save
+                              // still in flight for a previous sheet must not
+                              // touch what we're about to open
   const s = stands.find(x => x.id === id);
   capturingFor = s || null;
   $('capture-for').textContent = s ? `Note on ${s.gallery}` : 'Note';
@@ -108,13 +112,18 @@ async function saveCapture() {
   // can be read a second time by another tap and queued as a second bead —
   // one note typed once becoming two on the network. Emptying the box first
   // removes the window entirely; the text lives in `note` until it is safe.
+  const gen = captureGen;      // the sheet this save belongs to
+  const owner = capturingFor;  // the stand this save belongs to — read now,
+                                // not from the live capturingFor, which may
+                                // point at a different stand by the time this
+                                // await resolves
   el.value = '';
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const body = beadBody({
     note,
-    standUri: capturingFor ? `spine://records/${capturingFor.id}` : null,
+    standUri: owner ? `spine://records/${owner.id}` : null,
     fairSlug: settings.fairSlug || 'frieze-london-2026',
   }, now);
 
@@ -127,17 +136,27 @@ async function saveCapture() {
       body,
     });
   } catch (err) {
-    // Put the note back in the box. It is the only copy, and the user must be
-    // able to see it and try again.
-    el.value = note;
-    $('capture-for').textContent =
-      'Could not hold this note on the device — keep this screen open. '
-      + (err?.message || '');
+    // Put the note back in the box — but only if the user is still looking at
+    // this sheet. If they've since moved on to a different stand, the sheet
+    // no longer belongs to this save, and restoring here would overwrite
+    // whatever they are typing now.
+    if (gen === captureGen) {
+      el.value = note;
+      $('capture-for').textContent =
+        'Could not hold this note on the device — keep this screen open. '
+        + (err?.message || '');
+    }
     return false;
   }
 
-  $('capture').classList.add('hidden');
-  capturingFor = null;
+  // Only close the sheet if it's still the one this save started from — a
+  // later ✎ tap may already have opened a different sheet while this save
+  // was in flight, and this save has no business closing that one or
+  // clearing its stand association.
+  if (gen === captureGen) {
+    $('capture').classList.add('hidden');
+    capturingFor = null;
+  }
   await updateQueue();
   flushQueue();          // best-effort; it stays queued if the String is away
   return true;
@@ -150,15 +169,23 @@ async function updateQueue() {
 }
 
 let flushing = null;
+let flushAgain = false;
 
 /* Only one flush at a time. Two concurrent flushes each read the whole queue
  * and POST overlapping batches, and a note has been observed cleared locally
  * after a POST the String did not durably accept. A note that misses this
  * flush stays queued and goes out on the next one — held, never dropped —
- * so serialising costs at most a delay. */
+ * so serialising costs at most a delay. A call that arrives while a flush is
+ * already running sets flushAgain instead of being silently dropped: without
+ * it, a note queued mid-flush has nothing left to trigger it, and it would
+ * sit until the next unrelated trigger (a later save, 'online', or the next
+ * boot) instead of going out right after the current flush settles. */
 function flushQueue() {
-  if (flushing) return flushing;
-  flushing = doFlush().finally(() => { flushing = null; });
+  if (flushing) { flushAgain = true; return flushing; }
+  flushing = doFlush().finally(() => {
+    flushing = null;
+    if (flushAgain) { flushAgain = false; flushQueue(); }
+  });
   return flushing;
 }
 
@@ -222,7 +249,11 @@ function wire() {
     const noteBtn = e.target.closest('.note-btn');
     if (noteBtn) { await openCapture(noteBtn.dataset.note); return; }
     const btn = e.target.closest('.mark');
-    if (!btn) return;
+    // #capture-save and #capture-cancel also carry class="mark" (for shared
+    // button styling) but have no data-id — without this guard they'd match
+    // here too and togglePlanned(plan, undefined, day) would write a bogus
+    // "undefined" key into the stored plan.
+    if (!btn || !btn.dataset.id) return;
     plan = togglePlanned(plan, btn.dataset.id, day);
     await store.savePlan(db, plan);
     render();
