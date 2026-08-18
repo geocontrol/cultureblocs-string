@@ -1,6 +1,7 @@
 import * as store from './lib/store.js';
 import { standModel, bySection, search, togglePlanned, isPlanned, plannedFor, daysBetween } from './lib/plan.js';
-import { fetchStands, fetchFair } from './lib/string.js';
+import { beadBody, makeDedupeKey } from './lib/records.js';
+import { fetchStands, fetchFair, flush } from './lib/string.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g,
@@ -19,6 +20,8 @@ async function boot() {
   wire();
   render();
   refresh();          // best-effort; the hall usually has no connection
+  await updateQueue();
+  flushQueue();
 }
 
 function fillDays() {
@@ -64,7 +67,64 @@ function standRow(s) {
       ${s.artists.length ? `<div class="a">${esc(s.artists.slice(0, 4).join(', '))}</div>` : ''}
     </div>
     <button class="mark" data-id="${esc(s.id)}" aria-pressed="${on}">${on ? '★' : '☆'}</button>
+    <button class="mark note-btn" data-note="${esc(s.id)}">✎</button>
   </div>`;
+}
+
+let capturingFor = null;
+
+function openCapture(id) {
+  const s = stands.find(x => x.id === id);
+  capturingFor = s || null;
+  $('capture-for').textContent = s ? `Note on ${s.gallery}` : 'Note';
+  $('capture-note').value = '';
+  $('capture').classList.remove('hidden');
+  $('capture-note').focus();
+}
+
+async function saveCapture() {
+  const note = $('capture-note').value.trim();
+  if (!note) { $('capture').classList.add('hidden'); return; }
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  const body = beadBody({
+    note,
+    standUri: capturingFor ? `spine://records/${capturingFor.id}` : null,
+    fairSlug: settings.fairSlug || 'frieze-london-2026',
+  }, now);
+  await store.queueBead(db, {
+    dedupeKey: makeDedupeKey(id),
+    type: 'com.cultureblocs.bead',
+    sourceApp: 'rounds',
+    createdAt: now,
+    body,
+  });
+  $('capture').classList.add('hidden');
+  capturingFor = null;
+  await updateQueue();
+  flushQueue();          // best-effort; it stays queued if the String is away
+}
+
+async function updateQueue() {
+  const q = await store.queuedBeads(db);
+  note(q.length ? `${q.length} note(s) held on this phone` : 'ready');
+  return q;
+}
+
+/* Beads are held until a String accepts them. Nothing is dropped on failure:
+ * a note made in a hall is the only copy there is. */
+async function flushQueue() {
+  const q = await store.queuedBeads(db);
+  if (!q.length) return;
+  try {
+    const accepted = await flush(settings.stringUrl, settings.token, q);
+    if (accepted.length) {
+      await store.clearQueued(db, accepted);
+      note(`${accepted.length} note(s) delivered`);
+    }
+  } catch {
+    note(`${q.length} note(s) held — the String is not reachable`);
+  }
 }
 
 function render() {
@@ -103,8 +163,13 @@ function wire() {
   $('tab-fair').onclick   = () => { screen = 'fair'; render(); };
   $('q').oninput = () => render();
   $('day').onchange = e => { day = e.target.value || null; render(); };
+  $('capture-cancel').onclick = () => { $('capture').classList.add('hidden'); capturingFor = null; };
+  $('capture-save').onclick = saveCapture;
+  window.addEventListener('online', flushQueue);
 
   document.addEventListener('click', async e => {
+    const noteBtn = e.target.closest('.note-btn');
+    if (noteBtn) { openCapture(noteBtn.dataset.note); return; }
     const btn = e.target.closest('.mark');
     if (!btn) return;
     plan = togglePlanned(plan, btn.dataset.id, day);
