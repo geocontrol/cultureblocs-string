@@ -149,9 +149,22 @@ async function updateQueue() {
   return q;
 }
 
+let flushing = null;
+
+/* Only one flush at a time. Two concurrent flushes each read the whole queue
+ * and POST overlapping batches, and a note has been observed cleared locally
+ * after a POST the String did not durably accept. A note that misses this
+ * flush stays queued and goes out on the next one — held, never dropped —
+ * so serialising costs at most a delay. */
+function flushQueue() {
+  if (flushing) return flushing;
+  flushing = doFlush().finally(() => { flushing = null; });
+  return flushing;
+}
+
 /* Beads are held until a String accepts them. Nothing is dropped on failure:
  * a note made in a hall is the only copy there is. */
-async function flushQueue() {
+async function doFlush() {
   const q = await store.queuedBeads(db);
   if (!q.length) return;
   try {
