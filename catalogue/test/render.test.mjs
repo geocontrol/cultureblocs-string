@@ -64,6 +64,22 @@ test('renderWork escapes hostile text', () => {
   assert.ok(!html.includes('onerror="alert'), 'alt must be escaped');
 });
 
+test('renderWork marks the outbound reference link nofollow ugc, not just noopener', () => {
+  // Any actor's works.uri/referenceUrl is a stranger's URL rendered on the
+  // trusted cultureblocs.com domain. noopener alone protects the opener
+  // window but says nothing about search-engine trust or that the link is
+  // user-generated content, not editorial endorsement.
+  const html = renderWork(workModel(WORK, PDS, DID));
+  assert.match(html, /class="cb-work-link" href="[^"]*" rel="noopener nofollow ugc"/);
+});
+
+test('renderProfile marks outbound profile links nofollow ugc, not just noopener', () => {
+  const html = renderProfile(profileModel({ value: {
+    name: 'Mark', links: [{ uri: 'https://example.com', title: 'site' }],
+  }}, 'a.example'));
+  assert.match(html, /rel="noopener nofollow ugc"/);
+});
+
 test('renderWork drops a non-http referenceUrl', () => {
   const bad = { uri: 'at://x/y/z', value: {
     title: 'T', createdAt: '2024-01-01T00:00:00Z', referenceUrl: 'javascript:alert(1)' }};

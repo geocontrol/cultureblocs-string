@@ -38,22 +38,50 @@ function pdsFromDoc(doc) {
   return endpoint;
 }
 
+// A genuine 4xx answer means the actor really doesn't resolve; the visitor's
+// handle (or DID) is wrong and the friendly, spelling-focused message is the
+// right one. Anything else — a fetch rejection (offline, DNS failure; no
+// .status at all) or a 5xx — is a transport-adjacent fault that has nothing
+// to do with what the visitor typed, and must reach the caller unchanged so
+// it lands on the generic "could not load, try again" path instead. The
+// synthetic error keeps `.status` in the 4xx range purely so callers can
+// route on it the same way as any other resolution failure below.
+function notResolved(actor, status) {
+  const err = new Error(`could not resolve the handle "${actor}"`);
+  err.status = status;
+  return err;
+}
+
 export async function resolveActor(actor, { fetchFn = fetch } = {}) {
   let did = actor;
   if (!actor.startsWith('did:')) {
+    let r;
     try {
-      const r = await getJson(fetchFn,
+      r = await getJson(fetchFn,
         `${BSKY}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(actor)}`);
-      did = r.did;
-    } catch {
-      throw new Error(`could not resolve the handle "${actor}"`);
+    } catch (e) {
+      if (e.status >= 400 && e.status < 500) throw notResolved(actor, e.status);
+      throw e;
     }
+    did = r.did;
+    // A 200 with a missing/malformed did is not a network problem, but it is
+    // also not something later code can act on: did.startsWith below would
+    // throw a confusing "Cannot read properties of undefined" instead of the
+    // same friendly message a bad handle already gets.
+    if (typeof did !== 'string' || !did) throw notResolved(actor, 400);
   }
   let doc;
-  if (did.startsWith('did:web:')) {
-    doc = await getJson(fetchFn, `https://${did.slice('did:web:'.length)}/.well-known/did.json`);
-  } else {
-    doc = await getJson(fetchFn, `${PLC}/${encodeURIComponent(did)}`);
+  try {
+    if (did.startsWith('did:web:')) {
+      doc = await getJson(fetchFn, `https://${did.slice('did:web:'.length)}/.well-known/did.json`);
+    } else {
+      doc = await getJson(fetchFn, `${PLC}/${encodeURIComponent(did)}`);
+    }
+  } catch (e) {
+    // Same reasoning as above: a 502 from plc.directory (or a did:web host)
+    // is not evidence the handle/DID is wrong.
+    if (e.status >= 400 && e.status < 500) throw notResolved(actor, e.status);
+    throw e;
   }
   const pds = pdsFromDoc(doc);
   if (!pds) throw new Error(`no PDS found for ${did}`);

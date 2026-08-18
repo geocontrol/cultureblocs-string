@@ -7,12 +7,20 @@ export const DEFAULT_TEMPLATE = 'grid';
  * domain that restyles the page. CSS cannot execute script, but it can hide,
  * overlay and fabricate text well enough to mislead. Same-origin only costs
  * nothing: whoever copied this bundle to their own host serves their own CSS
- * from their own origin anyway. */
-export function safeCssHref(raw, origin) {
+ * from their own origin anyway.
+ *
+ * `pageUrl` must be the page's own URL (e.g. window.location.href), not just
+ * its origin: a relative `?css=mine.css` has to resolve against the page's
+ * own directory, the same way a plain <link href="mine.css"> would. Resolving
+ * against the origin root instead breaks exactly the self-hosters this
+ * feature exists for — a bundle copied to example.com/art/ would look for
+ * /mine.css instead of /art/mine.css. The same-origin guard is unaffected:
+ * it still compares the resolved URL's origin against pageUrl's origin. */
+export function safeCssHref(raw, pageUrl) {
   if (!raw || typeof raw !== 'string') return null;
   let base;
   try {
-    base = new URL(origin);
+    base = new URL(pageUrl);
   } catch {
     return null;
   }
@@ -27,7 +35,7 @@ export function safeCssHref(raw, origin) {
   return u.pathname + u.search;
 }
 
-export function parseParams(search, origin) {
+export function parseParams(search, pageUrl) {
   const q = new URLSearchParams(search || '');
   const rawActor = (q.get('actor') || '').trim();
   const rawTemplate = (q.get('template') || '').trim();
@@ -35,6 +43,6 @@ export function parseParams(search, origin) {
     actor: rawActor || null,
     // An unknown name must not reach a <link href>, or it becomes a path probe.
     template: TEMPLATES.includes(rawTemplate) ? rawTemplate : DEFAULT_TEMPLATE,
-    cssHref: safeCssHref(q.get('css'), origin),
+    cssHref: safeCssHref(q.get('css'), pageUrl),
   };
 }

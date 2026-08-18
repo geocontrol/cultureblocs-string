@@ -43,7 +43,7 @@ export function renderProfile(m) {
   ${meta ? `<p class="cb-profile-meta">${escapeHtml(meta)}</p>` : ''}
   ${m.bio ? `<p class="cb-profile-bio">${escapeHtml(m.bio)}</p>` : ''}
   ${m.links.length ? `<ul class="cb-profile-links">${m.links.map(l =>
-    `<li><a href="${escapeHtml(l.uri)}" rel="noopener">${escapeHtml(l.title)}</a></li>`).join('')}</ul>` : ''}
+    `<li><a href="${escapeHtml(l.uri)}" rel="noopener nofollow ugc">${escapeHtml(l.title)}</a></li>`).join('')}</ul>` : ''}
 </header>`;
 }
 
@@ -58,7 +58,7 @@ export function renderWork(m, extras = {}) {
   <h2 class="cb-work-title">${escapeHtml(m.title)}</h2>
   ${m.completionDate ? `<p class="cb-work-meta">${escapeHtml(m.completionDate)}</p>` : ''}
   ${m.description ? `<p class="cb-work-desc">${escapeHtml(m.description)}</p>` : ''}
-  ${m.referenceUrl ? `<a class="cb-work-link" href="${escapeHtml(m.referenceUrl)}" rel="noopener">View work</a>` : ''}
+  ${m.referenceUrl ? `<a class="cb-work-link" href="${escapeHtml(m.referenceUrl)}" rel="noopener nofollow ugc">View work</a>` : ''}
   ${refs}
 </article>`;
 }

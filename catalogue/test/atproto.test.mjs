@@ -40,6 +40,60 @@ test('resolveActor throws a named error when the handle does not resolve', async
   await assert.rejects(() => resolveActor('nope.invalid', { fetchFn }), /nope\.invalid/);
 });
 
+test('resolveActor throws the friendly message for a 404 from resolveHandle too', async () => {
+  const fetchFn = async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => 'not found' });
+  await assert.rejects(() => resolveActor('nope.invalid', { fetchFn }),
+    /could not resolve the handle "nope\.invalid"/);
+});
+
+test('resolveActor propagates a transport failure instead of blaming the handle', async () => {
+  // fetch itself rejecting (offline, DNS failure) has no .status at all. The
+  // controller must be able to tell this apart from "the handle is wrong" and
+  // route it to the generic load-failure message with a retry link instead.
+  const networkError = new Error('network down');
+  const fetchFn = async () => { throw networkError; };
+  await assert.rejects(() => resolveActor('jane.artist', { fetchFn }), (e) => {
+    assert.equal(e, networkError, 'the original transport failure must propagate unchanged');
+    assert.equal(e.status, undefined, 'a transport failure must not gain a synthetic 4xx status');
+    assert.ok(!/could not resolve the handle/.test(e.message),
+      'must not be disguised as a bad handle');
+    return true;
+  });
+});
+
+test('resolveActor propagates a 5xx from resolveHandle instead of blaming the handle', async () => {
+  const fetchFn = async () => ({ ok: false, status: 503, json: async () => ({}), text: async () => 'unavailable' });
+  await assert.rejects(() => resolveActor('jane.artist', { fetchFn }), (e) => {
+    assert.equal(e.status, 503);
+    assert.ok(!/could not resolve the handle/.test(e.message));
+    return true;
+  });
+});
+
+test('resolveActor propagates a 502 from plc.directory instead of blaming the handle', async () => {
+  // This is the fetch *after* resolveHandle succeeds — a DID was resolved,
+  // but the DID document host itself is having a bad day. That is not
+  // evidence the handle was typed wrong.
+  const fetchFn = async (url) => {
+    if (url.includes('resolveHandle')) return { ok: true, status: 200, json: async () => ({ did: 'did:plc:abc' }) };
+    return { ok: false, status: 502, json: async () => ({}), text: async () => 'bad gateway' };
+  };
+  await assert.rejects(() => resolveActor('jane.artist', { fetchFn }), (e) => {
+    assert.equal(e.status, 502);
+    assert.ok(!/could not resolve the handle/.test(e.message));
+    return true;
+  });
+});
+
+test('resolveActor throws the friendly message rather than crashing when resolveHandle answers 200 with no did', async () => {
+  const fetchFn = async (url) => {
+    if (url.includes('resolveHandle')) return { ok: true, status: 200, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => PLC_DOC };
+  };
+  await assert.rejects(() => resolveActor('jane.artist', { fetchFn }),
+    /could not resolve the handle "jane\.artist"/);
+});
+
 test('fetchAllWorks follows the cursor until it is exhausted', async () => {
   const pages = [
     { records: [{ uri: 'at://x/1' }, { uri: 'at://x/2' }], cursor: 'c1' },

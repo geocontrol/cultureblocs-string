@@ -35,10 +35,31 @@ test('safeCssHref accepts a same-origin relative path', () => {
   assert.equal(safeCssHref('/themes/mine.css', ORIGIN), '/themes/mine.css');
 });
 
+test('safeCssHref resolves a relative path against the page\'s own directory, not the origin root', () => {
+  // A bundle copied to example.com/art/ must find example.com/art/mine.css,
+  // not example.com/mine.css — otherwise self-hosting the bundle anywhere but
+  // the origin root breaks a relative ?css=.
+  assert.equal(safeCssHref('mine.css', 'https://www.cultureblocs.com/art/index.html'), '/art/mine.css');
+  assert.equal(safeCssHref('mine.css', 'https://www.cultureblocs.com/art/'), '/art/mine.css');
+  assert.equal(safeCssHref('../shared/mine.css', 'https://www.cultureblocs.com/art/catalogue/'),
+    '/art/shared/mine.css');
+});
+
+test('safeCssHref still resolves an absolute-path css against the origin root regardless of page directory', () => {
+  assert.equal(safeCssHref('/themes/mine.css', 'https://www.cultureblocs.com/art/index.html'), '/themes/mine.css');
+});
+
 test('safeCssHref rejects cross-origin stylesheets', () => {
   assert.equal(safeCssHref('https://evil.example/x.css', ORIGIN), null);
   assert.equal(safeCssHref('//evil.example/x.css', ORIGIN), null);
   assert.equal(safeCssHref('http://www.cultureblocs.com/x.css', ORIGIN), null); // scheme differs
+});
+
+test('safeCssHref rejects cross-origin stylesheets even when the page has a directory path', () => {
+  // Directory-relative resolution must not loosen the same-origin guard.
+  const PAGE = 'https://www.cultureblocs.com/art/index.html';
+  assert.equal(safeCssHref('https://evil.example/x.css', PAGE), null);
+  assert.equal(safeCssHref('//evil.example/x.css', PAGE), null);
 });
 
 test('safeCssHref rejects non-http schemes', () => {

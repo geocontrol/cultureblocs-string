@@ -10,13 +10,26 @@
      so that a custom stylesheet can replace the look without fighting this. */
   *{box-sizing:border-box}
   body{margin:0;font:16px/1.5 system-ui,sans-serif}
-  #status{padding:2rem;max-width:38rem;margin-inline:auto}
-  #status h1{font-size:1.1rem;margin:0 0 .5rem}
-  #status code{background:#f4f4f4;padding:.1rem .3rem;border-radius:3px}
+  /* #status carries only transient text ("Loading…"); .notice carries every
+     terminal state (needs-an-actor, could-not-find, could-not-load, empty).
+     Both get their own explicit color/background here rather than inheriting
+     body's, which a template can set to anything (feature.css's --cb-ink is
+     near-white) — otherwise instructional text like the <code> example below
+     can render illegibly depending which template happens to be active. */
+  #status,.notice{padding:2rem;max-width:38rem;margin-inline:auto;color:#141414;background:#fff}
+  #status h1,.notice h1{font-size:1.1rem;margin:0 0 .5rem}
+  #status code,.notice code{background:#f4f4f4;padding:.1rem .3rem;border-radius:3px}
   .hidden{display:none}
 </style>
 </head>
 <body>
+  <noscript>
+    <p style="padding:2rem;max-width:38rem;margin-inline:auto;font:16px/1.5 system-ui,sans-serif">
+      This page reads an artist's published works live from the AT Protocol
+      network. It needs JavaScript enabled to do that — please turn it on and
+      reload the page.
+    </p>
+  </noscript>
   <div id="status" role="status" aria-live="polite"></div>
   <main id="catalogue"></main>
   <script type="module" src="catalogue.js"></script>
