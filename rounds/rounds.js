@@ -137,16 +137,15 @@ async function saveCapture() {
       body,
     });
   } catch (err) {
-    // Put the note back in the box — but only if the user is still looking at
-    // this sheet. If they've since moved on to a different stand, the sheet
-    // no longer belongs to this save, and restoring here would overwrite
-    // whatever they are typing now.
-    if (gen === captureGen) {
-      el.value = note;
-      $('capture-for').textContent =
-        'Could not hold this note on the device — keep this screen open. '
-        + (err?.message || '');
-    }
+    // The note is the only copy. If the user has moved to another sheet we
+    // must not overwrite what they are typing now — but we must not drop this
+    // either, so it goes back in front of them.
+    const cur = el.value;
+    el.value = cur ? `${note}\n\n---\n${cur}` : note;
+    $('capture').classList.remove('hidden');
+    $('capture-for').textContent =
+      'Could not hold this note on the device — it is back in the box. '
+      + (err?.message || '');
     return false;
   }
 
@@ -196,11 +195,24 @@ async function doFlush() {
   const q = await store.queuedBeads(db);
   if (!q.length) return;
   try {
-    const accepted = await flush(settings.stringUrl, settings.token, q);
+    const results = await flush(settings.stringUrl, settings.token, q);
+    // A `duplicate` counts as accepted: the bead is already there, so
+    // holding it locally would mean flushing it forever.
+    const accepted = results
+      .filter(x => x.status === 'created' || x.status === 'duplicate')
+      .map(x => x.dedupeKey);
+    const invalid = results.filter(x => x.status === 'invalid');
     if (accepted.length) {
       await store.clearQueued(db, accepted);
     }
-    await updateQueue();      // always: a partial flush must show what is still held
+    const remaining = await updateQueue();      // always: a partial flush must show what is still held
+    if (invalid.length) {
+      // An invalid bead — e.g. a note that somehow exceeds the 3000-grapheme
+      // cap — would otherwise sit in the queue forever, rejected on every
+      // retry with nothing on screen to say why. Surface it instead.
+      note(`${remaining.length} note(s) held; ${invalid.length} rejected — `
+        + invalid.map(x => (x.problems || []).join('; ')).join(' | '));
+    }
   } catch {
     note(`${q.length} note(s) held — the String is not reachable`);
   }
@@ -230,13 +242,23 @@ async function saveGoing() {
     },
   };
   try {
-    await flush(settings.stringUrl, settings.token, [rec]);
+    const results = await flush(settings.stringUrl, settings.token, [rec]);
+    const result = results[0];
+    if (result && result.status === 'invalid') {
+      $('going-status').textContent =
+        'Not saved — the String rejected it: '
+        + (result.problems || []).join('; ');
+      return;
+    }
     $('going-status').textContent =
       'Saved locally. To share it, publish the record with '
       + 'scripts/promote.py publish <record-id> --identity <name>.';
   } catch {
+    // Unlike a note, this write bypasses the offline queue, so nothing is
+    // held when this fails — there is nothing queued to retry automatically.
     $('going-status').textContent =
-      'Held — the String is not reachable. Try again when it is.';
+      'Not saved — the String is not reachable. Press "I\'m going" again '
+      + 'once it is.';
   }
 }
 
