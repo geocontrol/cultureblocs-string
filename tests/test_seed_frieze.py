@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "string"))
-from seed_frieze import fair_event, stand_lineup, day_list  # noqa: E402
+from seed_frieze import fair_event, stand_lineup, day_list, _assert_local  # noqa: E402
 from app.lexicon import LexiconRegistry  # noqa: E402
 
 NOW = "2026-08-18T10:00:00Z"
@@ -148,6 +148,64 @@ def test_description_at_exactly_the_limit_is_untouched():
     _, body = stand_lineup(row, "spine://records/fair1", "frieze-london-2026", [], NOW)
     assert body["note"] == "x" * 2000
     assert not body["note"].endswith("…")
+
+
+def _accepts(url):
+    """_assert_local() must return normally (not call sys.exit) for a local host."""
+    try:
+        _assert_local(url)
+    except SystemExit as exc:
+        raise AssertionError(f"{url!r} should be accepted, was refused: {exc}")
+
+
+def _refuses(url):
+    """_assert_local() must sys.exit (never proceed) for a non-local host."""
+    try:
+        _assert_local(url)
+    except SystemExit:
+        return
+    raise AssertionError(f"{url!r} should be refused, was accepted")
+
+
+def test_assert_local_accepts_localhost():
+    _accepts("http://localhost:8100")
+
+
+def test_assert_local_accepts_loopback_ip():
+    _accepts("http://127.0.0.1:8100")
+
+
+def test_assert_local_accepts_ipv6_loopback():
+    _accepts("http://[::1]:8100")
+
+
+def test_assert_local_accepts_a_tailnet_host():
+    _accepts("https://mybox.ts.net")
+
+
+def test_assert_local_refuses_a_public_domain():
+    _refuses("https://example.com")
+
+
+def test_assert_local_refuses_a_lookalike_localhost_subdomain():
+    """'localhost' must match exactly, not as a suffix — otherwise
+    localhost.evil.com would sail through on a substring/suffix check."""
+    _refuses("http://localhost.evil.com")
+
+
+def test_assert_local_refuses_a_lookalike_loopback_domain():
+    """Same trap for the loopback IP embedded in a public domain name."""
+    _refuses("http://127.0.0.1.nip.io")
+
+
+def test_assert_local_refuses_a_domain_that_merely_contains_ts_net():
+    """'.ts.net' must anchor the domain's real suffix, not just appear
+    somewhere in the hostname."""
+    _refuses("http://evil.ts.net.example.com")
+
+
+def test_assert_local_refuses_a_lan_ip():
+    _refuses("http://192.168.1.5:8100")
 
 
 if __name__ == "__main__":
