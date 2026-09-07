@@ -1,0 +1,351 @@
+[
+  {
+    "name": "a bead's geo, provenance and local media never leave",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "note": "The Rothko room, almost empty.",
+      "tags": [
+        "gallery",
+        "quiet"
+      ],
+      "geo": {
+        "lat": 51.5076,
+        "lng": -0.0994,
+        "precision": "exact"
+      },
+      "provenance": {
+        "app": "culturebloc",
+        "device": "totem-01",
+        "mintedAt": "2026-08-15T21:04:00Z",
+        "mintId": "9f2c...",
+        "timeAnchored": true
+      },
+      "media": [
+        {
+          "uri": "/media/abc.jpg",
+          "mime": "image/jpeg"
+        }
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "note": "The Rothko room, almost empty.",
+      "tags": [
+        "gallery",
+        "quiet"
+      ]
+    }
+  },
+  {
+    "name": "a subject publishes as its name alone — the coordinates inside it are dropped",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "subject": {
+        "name": "Tate Modern",
+        "did": "did:plc:venue123",
+        "geo": {
+          "lat": 51.5076,
+          "lng": -0.0994,
+          "precision": "exact"
+        }
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "subject": {
+        "name": "Tate Modern"
+      }
+    }
+  },
+  {
+    "name": "a subject with no name drops entirely rather than publishing an empty husk",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "subject": {
+        "geo": {
+          "lat": 51.5076,
+          "lng": -0.0994,
+          "precision": "exact"
+        }
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit"
+    }
+  },
+  {
+    "name": "uploaded images arrive as imageRefs and replace the local media refs",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "media": [
+        {
+          "uri": "/media/abc.jpg",
+          "mime": "image/jpeg",
+          "alt": "a red canvas"
+        }
+      ]
+    },
+    "images": [
+      {
+        "image": {
+          "$type": "blob",
+          "ref": {
+            "$link": "bafkreiA"
+          },
+          "mimeType": "image/jpeg",
+          "size": 1024
+        },
+        "alt": "a red canvas",
+        "aspectRatio": {
+          "width": 4,
+          "height": 3
+        }
+      }
+    ],
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "images": [
+        {
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreiA"
+            },
+            "mimeType": "image/jpeg",
+            "size": 1024
+          },
+          "alt": "a red canvas",
+          "aspectRatio": {
+            "width": 4,
+            "height": 3
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "an empty image list does not add an images key",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "note"
+    },
+    "images": [],
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "note"
+    }
+  },
+  {
+    "name": "links, work and kind survive on an annotation",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "work": {
+        "title": "Weeping Woman",
+        "creator": "Picasso",
+        "date": "1937"
+      },
+      "note": "Longer in front of it than I meant to be.",
+      "links": [
+        {
+          "uri": "https://tate.org.uk/x",
+          "title": "at the Tate"
+        }
+      ],
+      "provenance": {
+        "app": "ar-gallery",
+        "mintedAt": "2026-08-15T21:04:00Z"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "note": "Longer in front of it than I meant to be.",
+      "links": [
+        {
+          "uri": "https://tate.org.uk/x",
+          "title": "at the Tate"
+        }
+      ],
+      "work": {
+        "title": "Weeping Woman",
+        "creator": "Picasso",
+        "date": "1937"
+      }
+    }
+  },
+  {
+    "name": "a strand publishes its narrative and place name, with at:// items swapped in",
+    "fn": "strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-16T09:00:00Z",
+      "title": "Saturday, Bankside",
+      "narrative": "Started at the Tate and drifted east.",
+      "day": "2026-08-15T00:00:00Z",
+      "place": {
+        "name": "Bankside",
+        "geo": {
+          "lat": 51.5076,
+          "lng": -0.0994,
+          "precision": "approx"
+        }
+      },
+      "items": [
+        {
+          "uri": "spine://records/local-1"
+        },
+        {
+          "uri": "spine://records/local-2"
+        }
+      ],
+      "provenance": {
+        "app": "timeline",
+        "mintedAt": "2026-08-16T09:00:00Z"
+      }
+    },
+    "items": [
+      {
+        "uri": "at://did:plc:me/com.cultureblocs.bead/3lqk1",
+        "cid": "bafy1"
+      },
+      {
+        "uri": "at://did:plc:me/com.cultureblocs.bead/3lqk2",
+        "cid": "bafy2"
+      }
+    ],
+    "expected": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-16T09:00:00Z",
+      "title": "Saturday, Bankside",
+      "narrative": "Started at the Tate and drifted east.",
+      "day": "2026-08-15T00:00:00Z",
+      "place": {
+        "name": "Bankside"
+      },
+      "items": [
+        {
+          "uri": "at://did:plc:me/com.cultureblocs.bead/3lqk1",
+          "cid": "bafy1"
+        },
+        {
+          "uri": "at://did:plc:me/com.cultureblocs.bead/3lqk2",
+          "cid": "bafy2"
+        }
+      ]
+    }
+  },
+  {
+    "name": "a strand with no local items still publishes an items array",
+    "fn": "strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-16T09:00:00Z",
+      "title": "Empty"
+    },
+    "items": [],
+    "expected": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-16T09:00:00Z",
+      "title": "Empty",
+      "items": []
+    }
+  },
+  {
+    "name": "public-by-intent records keep their address and coordinates — that is the point of them",
+    "fn": "public",
+    "body": {
+      "$type": "com.cultureblocs.venue.profile",
+      "createdAt": "2026-08-01T09:00:00Z",
+      "name": "The Ivy House",
+      "capacity": 200,
+      "location": {
+        "name": "The Ivy House",
+        "latitude": "51.46",
+        "longitude": "-0.06"
+      },
+      "accessNotes": "Step-free via the side door.",
+      "provenance": {
+        "app": "doors",
+        "mintedAt": "2026-08-01T09:00:00Z"
+      },
+      "media": [
+        {
+          "uri": "/media/venue.jpg"
+        }
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.venue.profile",
+      "createdAt": "2026-08-01T09:00:00Z",
+      "name": "The Ivy House",
+      "capacity": 200,
+      "location": {
+        "name": "The Ivy House",
+        "latitude": "51.46",
+        "longitude": "-0.06"
+      },
+      "accessNotes": "Step-free via the side door."
+    }
+  },
+  {
+    "name": "a field added to a public-by-intent lexicon publishes automatically (deny list, by design)",
+    "fn": "public",
+    "body": {
+      "$type": "com.cultureblocs.creative.work",
+      "createdAt": "2026-08-01T09:00:00Z",
+      "title": "Untitled #1",
+      "fieldAddedNextYear": [
+        "something"
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.creative.work",
+      "createdAt": "2026-08-01T09:00:00Z",
+      "title": "Untitled #1",
+      "fieldAddedNextYear": [
+        "something"
+      ]
+    }
+  },
+  {
+    "name": "a field added to the bead lexicon does NOT publish until the strip is told about it (allow list, by design)",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "note",
+      "moodRing": "amber",
+      "heartRate": 62
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "note"
+    }
+  }
+]

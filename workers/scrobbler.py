@@ -8,17 +8,23 @@ mints ONE com.cultureblocs.bead per *closed* session into the Spine:
     kind: listen
     note: "Boards of Canada — Geogaddi (11 tracks)" + timed track list
     tags: the session's artists (up to 4)
-    provenance.app: "scrobbler"   <- the timeline renders these on the
-                                     dotted machine rail with a release
-                                     button; they are proposals, not
-                                     mint facts, and flow through your
-                                     normal curation.
+    state: proposal               <- the String stores this, and the
+                                     timeline renders proposals on the
+                                     dotted machine rail with keep and
+                                     release buttons. They are proposals,
+                                     not mint facts, and flow through your
+                                     normal curation. (provenance.app is
+                                     still set, but nothing infers the
+                                     dotted rail from it any more.)
 
 Design properties:
   - Only CLOSED sessions are minted (last play older than --gap), so a
     session that is still growing is never half-captured.
   - dedupeKey = scrobble:{user}:{first track's unix time} -> re-running
-    is always a no-op; the Spine ignores duplicates.
+    is idempotent. While the bead is still a proposal a later run may
+    REVISE it (a session that turned out to have more tracks in it);
+    once you have kept it, the String refuses to let this worker touch
+    it again.
   - Sessions that may be truncated by the lookback window are skipped
     (they'll be complete on the next run with a longer window).
   - No Last.fm secret needed: reading your own public recent tracks
@@ -131,6 +137,7 @@ def to_record(session: list[dict], user: str) -> dict:
         "type": "com.cultureblocs.bead",
         "sourceApp": "scrobbler",
         "createdAt": created,
+        "state": "proposal",
         "body": {
             "$type": "com.cultureblocs.bead",
             "createdAt": created,

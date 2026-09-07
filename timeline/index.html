@@ -59,6 +59,7 @@
         border:2.5px solid var(--k,#999);width:12px;height:12px}
   .stop.machine .kind::after{content:" · auto";color:var(--faint);
         text-transform:none;letter-spacing:0}
+  .tools .keep-btn:hover{color:var(--read)}
   .tools .release-btn:hover{color:var(--encounter)}
   .stop.annotation .bead{border-radius:2px;background:var(--card);
         border:2.5px solid var(--ink);left:-8px;width:14px;height:14px}
@@ -183,9 +184,9 @@ function anchoredBadge(r){
   const p=r.body.provenance||{};
   return p.timeAnchored===false?`<span class="chip" title="time is a best guess">~time</span>`:'';
 }
-function stopTools(machine){
+function stopTools(proposal){
   return `<div class="tools"><button class="edit-btn">edit</button><button class="photo-btn">+ photo</button>${
-    machine?'<button class="release-btn">release</button>':''}</div>
+    proposal?'<button class="keep-btn">keep</button><button class="release-btn">release</button>':''}</div>
   <input type="file" accept="image/*" class="photo-in" hidden>`;
 }
 function editor(b){
@@ -201,20 +202,28 @@ function editor(b){
     <div class="row"><button class="primary e-save">Save</button><span class="savemsg"></span></div>
   </div>`;
 }
-const MACHINE_APPS=['scrobbler'];   // sources whose beads are proposals, not mint facts
-function isMachine(r){return MACHINE_APPS.includes((r.body.provenance||{}).app)}
+/* A proposal is a machine's suggestion, on the dotted rail until a person
+   decides. This used to be guessed from the producing app's name, which meant
+   every new connector needed a change here; the String now stores it, so the
+   answer travels with the record. Records from a String older than that column
+   fall back to the old guess. */
+const MACHINE_APPS=['scrobbler'];   // fallback for pre-state records only
+function isProposal(r){
+  if(r.state) return r.state==='proposal';
+  return MACHINE_APPS.includes((r.body.provenance||{}).app);
+}
 function renderBead(r){
   const b=r.body,k=b.kind||'note';
   const place=b.subject&&b.subject.name?b.subject.name:'';
-  const machine=isMachine(r);
-  return `<div class="stop ${machine?'machine':''}" data-id="${r.id}" style="--k:var(--${k})">
+  const proposal=isProposal(r);
+  return `<div class="stop ${proposal?'machine':''}" data-id="${r.id}" style="--k:var(--${k})">
     <input type="checkbox" class="pick" data-id="${r.id}" ${S.sel.has(r.id)?'checked':''}>
     <time>${hhmm(r.createdAt)}</time><span class="bead"></span>
     <div class="kind">${esc(k)}</div>
     ${place?`<div class="title">${esc(place)}</div>`:''}
     <div class="meta">${esc(r.sourceApp)}${b.provenance&&b.provenance.device?' · '+esc(b.provenance.device):''} ${anchoredBadge(r)} ${pubBadge(r)}</div>
     <p class="note" contenteditable="plaintext-only">${esc(b.note||'')}</p>
-    ${chips(b)}${thumbs(b)}${stopTools(machine)}${editor(b)}
+    ${chips(b)}${thumbs(b)}${stopTools(proposal)}${editor(b)}
   </div>`;
 }
 function renderAnnotation(r){
@@ -321,6 +330,12 @@ document.addEventListener('click', async e=>{
       if(place) fields.place={name:place};
       fields.links=parseLinks(strandEl.querySelector('.s-links').value);
       await patch(id,fields); render(); return}
+    if(e.target.classList.contains('keep-btn')){
+      const id=stopEl.dataset.id;
+      const rr=await fetch(cfg.url+'/records/'+id+'/state',{method:'POST',
+        headers:headers(),body:JSON.stringify({state:'kept'})});
+      if(!rr.ok){alert('keep failed: '+await rr.text());return}
+      await loadDay(); return}
     if(e.target.classList.contains('release-btn')){
       const id=stopEl.dataset.id;
       if(e.target.dataset.armed!=='1'){
