@@ -373,5 +373,142 @@
         "title": "Gasholder"
       }
     }
+  },
+  {
+    "name": "an emoji (4 bytes) before the word: 'Hamlet' is bytes 9..15",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw 🎭 Hamlet",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 9,
+              "byteEnd": 15
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "an offset inside the emoji splits a character: byte 6 is mid-sequence",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw 🎭 Hamlet",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 6,
+              "byteEnd": 15
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      "$.refs[0].index: 6..15 splits a character in narrative"
+    ]
+  },
+  {
+    "name": "code-point offsets instead of bytes land inside the emoji: 6..12",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw 🎭 Hamlet",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 6,
+              "byteEnd": 12
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      "$.refs[0].index: 6..12 splits a character in narrative"
+    ]
+  },
+  {
+    "name": "combining mark: an anchor ending between 'e' and U+0301 (byte 7) is on a UTF-8 boundary, so it is valid — byte offsets cannot see grapheme clusters",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "At Café",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 3,
+              "byteEnd": 7
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "combining mark: the whole decomposed 'Café' is bytes 3..9, the end of the text",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "At Café",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 3,
+              "byteEnd": 9
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "'Amélie' in NFC is bytes 4..11 (7 bytes); the other normal form differs, and each is valid with its own offsets",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw Amélie",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 4,
+              "byteEnd": 11
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "'Amélie' in NFD is bytes 4..12 (8 bytes); the other normal form differs, and each is valid with its own offsets",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw Amélie",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 4,
+              "byteEnd": 12
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
   }
 ]
