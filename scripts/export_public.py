@@ -34,6 +34,9 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "string"))
+from app.strip import strip_bead, strip_strand  # noqa: E402  (the one canonical strip)
+
 STRAND = "com.cultureblocs.strand"
 
 
@@ -46,26 +49,12 @@ def api(base, path, token=None):
 
 
 def strip_item(body: dict) -> dict:
-    """Public-safe subset of a bead/annotation body."""
-    out = {}
-    for k in ("$type", "createdAt", "kind", "note", "tags", "links", "work"):
-        if k in body:
-            out[k] = body[k]
-    subj = body.get("subject")
-    if isinstance(subj, dict) and subj.get("name"):
-        out["subject"] = {"name": subj["name"]}          # name yes, geo no
+    """The canonical bead strip, plus local media refs: this target is a
+    static site that copies the files alongside, not a PDS."""
+    out = strip_bead(body)
     if body.get("media"):
         out["media"] = [{"uri": m["uri"], **({"alt": m["alt"]} if m.get("alt") else {})}
                         for m in body["media"]]
-    return out
-
-
-def strip_strand(body: dict) -> dict:
-    out = {k: body[k] for k in ("$type", "createdAt", "title", "narrative", "day", "links")
-           if k in body}
-    place = body.get("place")
-    if isinstance(place, dict) and place.get("name"):
-        out["place"] = {"name": place["name"]}
     return out
 
 

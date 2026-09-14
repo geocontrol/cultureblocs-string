@@ -43,6 +43,14 @@ Three scope separations, deliberately held:
   renders them live via `getBlob`. Context links to Instagram/FB/
   Flickr etc. ride the existing `links[]` field — the timeline editor
   now takes many links, one per line.
+- [x] **Phase 0 foundations for Loom** (see the
+  [cultureblocs-loom](https://github.com/geocontrol/cultureblocs-loom)
+  design): `sdk/js/` carries a browser lexicon validator and the publish
+  strip, held to the Python by shared fixtures; records gained an explicit
+  `state` so the dotted rail is stored rather than inferred, and machine
+  proposals are revisable until kept; the change feed gained HLC stamps,
+  device and actor; `PATCH` honours `If-Match`. The timeline gained the
+  **keep** button the README always described.
 - [ ] **Enrichment worker** — consume `GET /changes`, cluster each
   day's beads by time/place gaps into *draft* strands to accept or
   discard. Hand-made strands are the calibration set. *Independent.*

@@ -1,0 +1,514 @@
+[
+  {
+    "name": "anchor inside ASCII note is sound",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.bead",
+      {
+        "note": "Saw Severance",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 4,
+              "byteEnd": 13
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "anchor past the end of the note",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.bead",
+      {
+        "note": "Severance",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 0,
+              "byteEnd": 10
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      "$.refs[0].index: 0..10 is outside note (9 bytes)"
+    ]
+  },
+  {
+    "name": "strands anchor into narrative, counted in bytes not characters",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Amélie",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 0,
+              "byteEnd": 7
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "byte offsets after an accent: 'Ritzy' is bytes 15..20, not characters 14..19",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Amélie at the Ritzy",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 15,
+              "byteEnd": 20
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "an offset inside a multi-byte character",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Amélie",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 0,
+              "byteEnd": 3
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      "$.refs[0].index: 0..3 splits a character in narrative"
+    ]
+  },
+  {
+    "name": "an anchor with no text to anchor into",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.bead",
+      {
+        "refs": [
+          {
+            "index": {
+              "byteStart": 0,
+              "byteEnd": 1
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      "$.refs[0].index: 0..1 is outside note (0 bytes)"
+    ]
+  },
+  {
+    "name": "start after end",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.bead",
+      {
+        "note": "abcdef",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 4,
+              "byteEnd": 2
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      "$.refs[0].index: 4..2 is outside note (6 bytes)"
+    ]
+  },
+  {
+    "name": "malformed index is left to the validator",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.bead",
+      {
+        "note": "abc",
+        "refs": [
+          {
+            "index": {
+              "byteStart": "0",
+              "byteEnd": true
+            }
+          },
+          "junk"
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "presentation refs cannot anchor",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.bead",
+      {
+        "note": "x",
+        "presentation": {
+          "venueRef": {
+            "index": {
+              "byteStart": 0,
+              "byteEnd": 1
+            }
+          }
+        }
+      }
+    ],
+    "expected": [
+      "$.presentation.venueRef.index: presentation refs cannot anchor"
+    ]
+  },
+  {
+    "name": "records without text fields are ignored",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.venue.listing",
+      {
+        "refs": [
+          {
+            "index": {
+              "byteStart": 5,
+              "byteEnd": 9
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "full workRef maps to a subject ref",
+    "fn": "ref_from_work_ref",
+    "args": [
+      {
+        "title": "Gasholder",
+        "creator": "A. Painter",
+        "creatorDid": "did:plc:painter",
+        "date": "1972",
+        "wikidata": "Q1892745",
+        "linkedArt": "https://linked.art/object/1",
+        "accession": {
+          "institution": "did:plc:museum",
+          "id": "T01234"
+        },
+        "image": {
+          "uri": "http://brick:8100/media/x.jpg"
+        }
+      }
+    ],
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Gasholder",
+        "creator": "A. Painter",
+        "creatorDid": "did:plc:painter",
+        "date": "1972"
+      },
+      "externalIds": [
+        {
+          "scheme": "wikidata",
+          "id": "Q1892745"
+        },
+        {
+          "scheme": "linkedArt",
+          "id": "https://linked.art/object/1",
+          "uri": "https://linked.art/object/1"
+        },
+        {
+          "scheme": "accession",
+          "id": "did:plc:museum/T01234"
+        }
+      ]
+    }
+  },
+  {
+    "name": "untitled workRef falls back to its QID, then a placeholder",
+    "fn": "ref_from_work_ref",
+    "args": [
+      {
+        "wikidata": "Q1"
+      }
+    ],
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Q1"
+      },
+      "externalIds": [
+        {
+          "scheme": "wikidata",
+          "id": "Q1"
+        }
+      ]
+    }
+  },
+  {
+    "name": "empty workRef",
+    "fn": "ref_from_work_ref",
+    "args": [
+      {}
+    ],
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Untitled work"
+      }
+    }
+  },
+  {
+    "name": "annotation work is mirrored into refs",
+    "fn": "mirror_annotation_work",
+    "args": [
+      "com.cultureblocs.annotation",
+      {
+        "work": {
+          "title": "Gasholder"
+        },
+        "refs": [
+          {
+            "type": "person",
+            "role": "mention",
+            "descriptor": {
+              "label": "Turner"
+            }
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "work": {
+        "title": "Gasholder"
+      },
+      "refs": [
+        {
+          "type": "person",
+          "role": "mention",
+          "descriptor": {
+            "label": "Turner"
+          }
+        },
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "label": "Gasholder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "an existing work subject ref is never replaced",
+    "fn": "mirror_annotation_work",
+    "args": [
+      "com.cultureblocs.annotation",
+      {
+        "work": {
+          "title": "Gasholder"
+        },
+        "refs": [
+          {
+            "type": "work",
+            "role": "subject",
+            "descriptor": {
+              "label": "Gasholder No. 2"
+            }
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "work": {
+        "title": "Gasholder"
+      },
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "label": "Gasholder No. 2"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "beads are not mirrored",
+    "fn": "mirror_annotation_work",
+    "args": [
+      "com.cultureblocs.bead",
+      {
+        "work": {
+          "title": "Gasholder"
+        }
+      }
+    ],
+    "expected": {
+      "work": {
+        "title": "Gasholder"
+      }
+    }
+  },
+  {
+    "name": "an emoji (4 bytes) before the word: 'Hamlet' is bytes 9..15",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw 🎭 Hamlet",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 9,
+              "byteEnd": 15
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "an offset inside the emoji splits a character: byte 6 is mid-sequence",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw 🎭 Hamlet",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 6,
+              "byteEnd": 15
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      "$.refs[0].index: 6..15 splits a character in narrative"
+    ]
+  },
+  {
+    "name": "code-point offsets instead of bytes land inside the emoji: 6..12",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw 🎭 Hamlet",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 6,
+              "byteEnd": 12
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      "$.refs[0].index: 6..12 splits a character in narrative"
+    ]
+  },
+  {
+    "name": "combining mark: an anchor ending between 'e' and U+0301 (byte 7) is on a UTF-8 boundary, so it is valid — byte offsets cannot see grapheme clusters",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "At Café",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 3,
+              "byteEnd": 7
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "combining mark: the whole decomposed 'Café' is bytes 3..9, the end of the text",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "At Café",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 3,
+              "byteEnd": 9
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "'Amélie' in NFC is bytes 4..11 (7 bytes); the other normal form differs, and each is valid with its own offsets",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw Amélie",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 4,
+              "byteEnd": 11
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "'Amélie' in NFD is bytes 4..12 (8 bytes); the other normal form differs, and each is valid with its own offsets",
+    "fn": "anchor_problems",
+    "args": [
+      "com.cultureblocs.strand",
+      {
+        "narrative": "Saw Amélie",
+        "refs": [
+          {
+            "index": {
+              "byteStart": 4,
+              "byteEnd": 12
+            }
+          }
+        ]
+      }
+    ],
+    "expected": []
+  }
+]

@@ -43,6 +43,10 @@ Three principles, enforced by architecture rather than policy:
     workers/                    scrobbler (Last.fm -> listen beads)
     appview/                    network index: Jetstream consumer + query API
     sdk/python/                 offline capture queue (Swift port pending for AR)
+    sdk/js/                     lexicon validator + publish strip for
+                                browser clients (CANONICAL COPY — the
+                                Python and JS halves are held together by
+                                tests/fixtures/*.json)
     bridge/                     scripted totem-dump -> bead path
     skill/                      agent skill: drive the String from Claude Code
 
@@ -83,9 +87,13 @@ Open the timeline, load a day, and you have the whole loop minus a totem.
   place, links, and backdating.
 - **Scrobbler**: `workers/scrobbler.py` polls Last.fm, clusters plays
   into listening sessions, and proposes one `listen` bead per closed
-  session. Machine-minted beads sit on a dotted rail in the timeline
-  with a release button — proposals, not facts, until you keep them.
-  Run hourly (cron / LaunchAgent); idempotent by construction.
+  session. Machine-minted beads arrive with `state: proposal` and sit on
+  a dotted rail in the timeline with **keep** and **release** buttons —
+  proposals, not facts, until you keep them. Run hourly (cron /
+  LaunchAgent); idempotent by construction, and a session still in
+  proposal may be *revised* by a later run (a set that turned out to have
+  more tracks in it). The moment you keep it, no worker can touch it
+  again.
 
 ## Telling — the timeline
 
@@ -111,9 +119,10 @@ the org — same desk, different letterhead. CLI equivalent:
     python scripts/promote.py publish <record-id> --identity venue   # listings, claims
     python scripts/promote.py status          # drift since publish
 
-What publishes: place names, notes, tags, links, works, kinds, times.
-What never leaves: geo coordinates, provenance, device ids, mintIds,
-and (release one) media. Full details in [PROMOTER.md](PROMOTER.md).
+What publishes: place names, notes, tags, links, kinds, times, and refs —
+what an entry is about. What never leaves: geo coordinates, provenance,
+device ids, mintIds, local media, and any person named only by name.
+Full details in [PROMOTER.md](PROMOTER.md).
 
 Published strands render anywhere via the embed component — live from
 a repo (`<cultureblocs-strands actor="handle">`) or from a baked export
@@ -152,18 +161,50 @@ only path that publishes photos, until media blobs land in the promoter.
 |---|---|
 | `POST /records` | batch ingest, idempotent on `dedupeKey`, lexicon-validated |
 | `GET /records?day=&type=&sourceApp=` · `GET /days` | query |
-| `PATCH /records/{id}` | edit the envelope (note, tags, links…), re-validated |
-| `GET /changes?since=` | append-only feed with cursor (workers hook here) |
+| `PATCH /records/{id}` | edit the envelope (note, tags, links…), re-validated. Send `If-Match: <hlc>` to be refused with 412 rather than silently overwrite a version you never saw |
+| `POST /records/{id}/state` | proposal → kept, and the other states |
+| `GET /changes?since=` | append-only feed with cursor (workers hook here); rows carry `hlc`, `deviceId` and `actor` |
 | `POST /media` · `GET /media/{name}` | content-addressed photo store |
 | `PUT/GET/DELETE /identities…` | held publishing identities (passwords never returned) |
 | `POST /publish/{strand}` · `POST /unpublish/{strand}` | server-side Stage F |
 
 Auth: set `STRING_TOKEN` to require a bearer token on every call.
+Writes may carry `X-Device-Id: <name>`, which is recorded in the change
+feed — not a security control, but a second device replaying the log has
+to be able to tell its own writes apart from everyone else's.
+
+## Records have a state
+
+`proposal | kept | draft | published | edited`, stored on the record
+rather than guessed by each client from the producing app's name. A
+proposal is a machine's suggestion and may be revised until a person
+keeps it; everything else is a mint fact and is insert-once. Records
+written before this column existed were backfilled once, on first start:
+unpublished scrobbler beads became proposals and stay on the dotted rail,
+while scrobbler beads that were already published became kept, so they
+move from the dotted rail to the solid one.
+
+## Tests
+
+    python -m pytest tests/
+    node --test "sdk/js/test/*.test.mjs"     # and easel/, web/, catalogue/
+
+`tests/fixtures/lexicon-cases.json`, `strip-cases.json` and
+`refs-cases.json` are run by both languages. They are the contract
+between `string/app/lexicon.py` and `sdk/js/lexicon.js`, between
+`string/app/strip.py` and `sdk/js/strip.js`, and between
+`string/app/refs.py` and `sdk/js/refs.js` — change a rule and you change the fixture, and both
+implementations tell you whether they still agree. The strip fixtures
+decide what leaves your machine; treat them as the tests to be most
+suspicious of.
 
 ## Configuration
 
 `STRING_DB`, `STRING_LEXICONS`, `STRING_MEDIA`, `STRING_TOKEN` (the old
-`SPINE_*` names still work). Scripts honour `STRING_URL`/`STRING_TOKEN`
+`SPINE_*` names still work). `STRING_DEVICE_ID` names this machine in
+HLC stamps and change rows — set it on a host that matters (the brick),
+where it should stay the same across restarts; it defaults to the
+hostname. Scripts honour `STRING_URL`/`STRING_TOKEN`
 and accept `--string`/`--spine` interchangeably.
 
 ## Data, backups, privacy

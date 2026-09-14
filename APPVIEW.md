@@ -64,7 +64,11 @@ and the loop either closes or it doesn't.
 ## What this is careful not to become
 
 - **No identity resolution beyond DIDs.** It does not join references to
-  names, emails or accounts elsewhere.
+  names, emails or accounts elsewhere. Published `refs` (LOOM.md §9) are
+  compatible with this: works, events, venues and concepts may be grouped
+  by descriptor and external identifiers, but a person ref only publishes
+  when it already carries a DID or a public identifier, so people are
+  never matched by name. The index does not group refs yet.
 - **No inference about non-publishers.** Someone who attended and
   published nothing is, correctly, invisible.
 - **Counts, not dossiers.** `/venue` returns how many people referenced

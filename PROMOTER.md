@@ -38,11 +38,21 @@ local records are untouched.
 
 ## What gets stripped
 
-Same discipline as the static exporter, applied for the open network:
-geo coordinates, all provenance (devices, mintIds, apps), and — release one
-only — media. Place names, notes, tags, links, works, kinds and times
-survive. The note text publishes exactly as written: selecting a strand is
-the act of consent.
+One strip, in `string/app/strip.py`, used by the publisher, this script
+and the static exporter, and mirrored for browser clients in
+`sdk/js/strip.js`. `tests/fixtures/strip-cases.json` is the specification
+both are tested against — read it for the exact rules.
+
+It is an allowlist at every depth: a field it does not name does not
+publish. Geo coordinates, all provenance (devices, mintIds, apps) and
+local media refs never leave; a work's local `image` never leaves. Place
+names, notes, tags, links, kinds and times survive, as do refs — minus
+resolver bookkeeping, and minus any person ref — or ref of any type other
+than work, event, venue or concept — that has neither a DID nor an external
+identifier, because a bare name may be a private individual. A `did` that
+is not a well-formed DID counts as no DID.
+The note text publishes exactly as written: selecting a strand is the act
+of consent.
 
 ## Known limitations (release one)
 

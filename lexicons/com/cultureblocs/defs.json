@@ -4,7 +4,7 @@
   "defs": {
     "workRef": {
       "type": "object",
-      "description": "Reference to an artwork/creative work. At least one resolvable ID or a descriptive fallback (title).",
+      "description": "DEPRECATED: use #ref with type 'work'. Reference to an artwork/creative work. At least one resolvable ID or a descriptive fallback (title). Readers map it to #ref as { type: work, role: subject, descriptor: { label: title, creator, creatorDid, date }, externalIds: [wikidata, linkedArt, accession] }.",
       "properties": {
         "wikidata": {
           "type": "string",
@@ -242,7 +242,12 @@
             "doi",
             "viaf",
             "discogs",
-            "rsl"
+            "rsl",
+            "isbn",
+            "olid",
+            "tmdb",
+            "linkedArt",
+            "accession"
           ]
         },
         "id": {
@@ -254,6 +259,69 @@
           "format": "uri",
           "description": "Resolvable URL for this identifier, where one exists."
         }
+      }
+    },
+    "ref": {
+      "type": "object",
+      "description": "What an entry is about, or reaches for, as data beside the text. Modelled on app.bsky.richtext.facet: the text is never rewritten, and `index` is a UTF-8 byte range into the record's own text (strand.narrative; bead.note; annotation.note). Identity is descriptor + did + externalIds. No AppView cluster id is ever part of a ref.",
+      "required": ["type", "role", "descriptor"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "maxGraphemes": 32,
+          "knownValues": ["person", "work", "event", "venue", "concept"]
+        },
+        "role": {
+          "type": "string",
+          "maxGraphemes": 32,
+          "knownValues": ["subject", "mention"],
+          "description": "subject: what the record is about. mention: invoked, compared, gestured at. Readers treat any other value as mention."
+        },
+        "descriptor": { "type": "ref", "ref": "#refDescriptor" },
+        "did": {
+          "type": "string",
+          "format": "did",
+          "description": "DID of the referent itself (a person, a venue with an account). A work's maker goes in descriptor.creatorDid."
+        },
+        "externalIds": {
+          "type": "array",
+          "maxLength": 20,
+          "items": { "type": "ref", "ref": "#externalId" }
+        },
+        "index": { "type": "ref", "ref": "#byteSlice" }
+      }
+    },
+    "refDescriptor": {
+      "type": "object",
+      "description": "The portable description of a referent: enough to cluster on when no identifier exists. Deliberately has no free-text note.",
+      "required": ["label"],
+      "properties": {
+        "label": { "type": "string", "maxGraphemes": 500, "description": "Title of a work, name of a person, venue, event or concept." },
+        "creator": { "type": "string", "maxGraphemes": 300 },
+        "creatorDid": { "type": "string", "format": "did" },
+        "date": { "type": "string", "maxGraphemes": 100, "description": "Freeform, e.g. '1972' or 'c. 1889'." }
+      }
+    },
+    "byteSlice": {
+      "type": "object",
+      "description": "Same shape as app.bsky.richtext.facet#byteSlice: zero-indexed UTF-8 byte offsets, end exclusive. Text length limits elsewhere are in graphemes; these are bytes.",
+      "required": ["byteStart", "byteEnd"],
+      "properties": {
+        "byteStart": { "type": "integer", "minimum": 0 },
+        "byteEnd": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "description": "How the work was encountered: the manifestation, as distinct from the work. Two beads can share a work ref and differ here.",
+      "properties": {
+        "format": {
+          "type": "string",
+          "maxGraphemes": 100,
+          "knownValues": ["IMAX 70mm", "70mm", "35mm", "digital", "streaming", "broadcast", "hardback", "paperback", "ebook", "audiobook", "vinyl", "live"]
+        },
+        "venueRef": { "type": "ref", "ref": "#ref", "description": "A reference to a venue, never a location: carries no coordinates." },
+        "eventRef": { "type": "ref", "ref": "#ref", "description": "The screening or performance attended." }
       }
     },
     "didRef": {

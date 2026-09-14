@@ -25,6 +25,12 @@
             "type": "string",
             "maxGraphemes": 10000
           },
+          "refs": {
+            "type": "array",
+            "maxLength": 50,
+            "items": { "type": "ref", "ref": "com.cultureblocs.defs#ref" },
+            "description": "What this record is about (role subject) and what it reaches for (role mention). Anchors index into `narrative`."
+          },
           "items": {
             "type": "array",
             "maxLength": 200,

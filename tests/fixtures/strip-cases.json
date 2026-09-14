@@ -1,0 +1,1013 @@
+[
+  {
+    "name": "a bead's geo, provenance and local media never leave",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "note": "The Rothko room, almost empty.",
+      "tags": [
+        "gallery",
+        "quiet"
+      ],
+      "geo": {
+        "lat": 51.5076,
+        "lng": -0.0994,
+        "precision": "exact"
+      },
+      "provenance": {
+        "app": "culturebloc",
+        "device": "totem-01",
+        "mintedAt": "2026-08-15T21:04:00Z",
+        "mintId": "9f2c...",
+        "timeAnchored": true
+      },
+      "media": [
+        {
+          "uri": "/media/abc.jpg",
+          "mime": "image/jpeg"
+        }
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "note": "The Rothko room, almost empty.",
+      "tags": [
+        "gallery",
+        "quiet"
+      ]
+    }
+  },
+  {
+    "name": "a subject publishes as its name alone — the coordinates inside it are dropped",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "subject": {
+        "name": "Tate Modern",
+        "did": "did:plc:venue123",
+        "geo": {
+          "lat": 51.5076,
+          "lng": -0.0994,
+          "precision": "exact"
+        }
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "subject": {
+        "name": "Tate Modern"
+      }
+    }
+  },
+  {
+    "name": "a subject with no name drops entirely rather than publishing an empty husk",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "subject": {
+        "geo": {
+          "lat": 51.5076,
+          "lng": -0.0994,
+          "precision": "exact"
+        }
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit"
+    }
+  },
+  {
+    "name": "uploaded images arrive as imageRefs and replace the local media refs",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "media": [
+        {
+          "uri": "/media/abc.jpg",
+          "mime": "image/jpeg",
+          "alt": "a red canvas"
+        }
+      ]
+    },
+    "images": [
+      {
+        "image": {
+          "$type": "blob",
+          "ref": {
+            "$link": "bafkreiA"
+          },
+          "mimeType": "image/jpeg",
+          "size": 1024
+        },
+        "alt": "a red canvas",
+        "aspectRatio": {
+          "width": 4,
+          "height": 3
+        }
+      }
+    ],
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "visit",
+      "images": [
+        {
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreiA"
+            },
+            "mimeType": "image/jpeg",
+            "size": 1024
+          },
+          "alt": "a red canvas",
+          "aspectRatio": {
+            "width": 4,
+            "height": 3
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "an empty image list does not add an images key",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "note"
+    },
+    "images": [],
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "note"
+    }
+  },
+  {
+    "name": "links, work and kind survive on an annotation",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "work": {
+        "title": "Weeping Woman",
+        "creator": "Picasso",
+        "date": "1937"
+      },
+      "note": "Longer in front of it than I meant to be.",
+      "links": [
+        {
+          "uri": "https://tate.org.uk/x",
+          "title": "at the Tate"
+        }
+      ],
+      "provenance": {
+        "app": "ar-gallery",
+        "mintedAt": "2026-08-15T21:04:00Z"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "note": "Longer in front of it than I meant to be.",
+      "links": [
+        {
+          "uri": "https://tate.org.uk/x",
+          "title": "at the Tate"
+        }
+      ],
+      "work": {
+        "title": "Weeping Woman",
+        "creator": "Picasso",
+        "date": "1937"
+      }
+    }
+  },
+  {
+    "name": "a strand publishes its narrative and place name, with at:// items swapped in",
+    "fn": "strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-16T09:00:00Z",
+      "title": "Saturday, Bankside",
+      "narrative": "Started at the Tate and drifted east.",
+      "day": "2026-08-15T00:00:00Z",
+      "place": {
+        "name": "Bankside",
+        "geo": {
+          "lat": 51.5076,
+          "lng": -0.0994,
+          "precision": "approx"
+        }
+      },
+      "items": [
+        {
+          "uri": "spine://records/local-1"
+        },
+        {
+          "uri": "spine://records/local-2"
+        }
+      ],
+      "provenance": {
+        "app": "timeline",
+        "mintedAt": "2026-08-16T09:00:00Z"
+      }
+    },
+    "items": [
+      {
+        "uri": "at://did:plc:me/com.cultureblocs.bead/3lqk1",
+        "cid": "bafy1"
+      },
+      {
+        "uri": "at://did:plc:me/com.cultureblocs.bead/3lqk2",
+        "cid": "bafy2"
+      }
+    ],
+    "expected": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-16T09:00:00Z",
+      "title": "Saturday, Bankside",
+      "narrative": "Started at the Tate and drifted east.",
+      "day": "2026-08-15T00:00:00Z",
+      "place": {
+        "name": "Bankside"
+      },
+      "items": [
+        {
+          "uri": "at://did:plc:me/com.cultureblocs.bead/3lqk1",
+          "cid": "bafy1"
+        },
+        {
+          "uri": "at://did:plc:me/com.cultureblocs.bead/3lqk2",
+          "cid": "bafy2"
+        }
+      ]
+    }
+  },
+  {
+    "name": "a strand with no local items still publishes an items array",
+    "fn": "strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-16T09:00:00Z",
+      "title": "Empty"
+    },
+    "items": [],
+    "expected": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-16T09:00:00Z",
+      "title": "Empty",
+      "items": []
+    }
+  },
+  {
+    "name": "public-by-intent records keep their address and coordinates — that is the point of them",
+    "fn": "public",
+    "body": {
+      "$type": "com.cultureblocs.venue.profile",
+      "createdAt": "2026-08-01T09:00:00Z",
+      "name": "The Ivy House",
+      "capacity": 200,
+      "location": {
+        "name": "The Ivy House",
+        "latitude": "51.46",
+        "longitude": "-0.06"
+      },
+      "accessNotes": "Step-free via the side door.",
+      "provenance": {
+        "app": "doors",
+        "mintedAt": "2026-08-01T09:00:00Z"
+      },
+      "media": [
+        {
+          "uri": "/media/venue.jpg"
+        }
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.venue.profile",
+      "createdAt": "2026-08-01T09:00:00Z",
+      "name": "The Ivy House",
+      "capacity": 200,
+      "location": {
+        "name": "The Ivy House",
+        "latitude": "51.46",
+        "longitude": "-0.06"
+      },
+      "accessNotes": "Step-free via the side door."
+    }
+  },
+  {
+    "name": "a field added to a public-by-intent lexicon publishes automatically (deny list, by design)",
+    "fn": "public",
+    "body": {
+      "$type": "com.cultureblocs.creative.work",
+      "createdAt": "2026-08-01T09:00:00Z",
+      "title": "Untitled #1",
+      "fieldAddedNextYear": [
+        "something"
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.creative.work",
+      "createdAt": "2026-08-01T09:00:00Z",
+      "title": "Untitled #1",
+      "fieldAddedNextYear": [
+        "something"
+      ]
+    }
+  },
+  {
+    "name": "a field added to the bead lexicon does NOT publish until the strip is told about it (allow list, by design)",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "note",
+      "moodRing": "amber",
+      "heartRate": 62
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "note"
+    }
+  },
+  {
+    "name": "bead: the undeclared `work` field no longer publishes",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "watch",
+      "work": {
+        "title": "Severance"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "watch"
+    }
+  },
+  {
+    "name": "bead: links and tags are stripped per item",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "bloc",
+      "tags": [
+        "ok",
+        7,
+        ""
+      ],
+      "links": [
+        {
+          "uri": "https://example.org/show",
+          "title": "Show",
+          "trackingNote": "from J"
+        },
+        {
+          "title": "no uri"
+        }
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "bloc",
+      "tags": [
+        "ok"
+      ],
+      "links": [
+        {
+          "uri": "https://example.org/show",
+          "title": "Show"
+        }
+      ]
+    }
+  },
+  {
+    "name": "annotation: work.image (a local media URI) never publishes",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-09-14T10:00:00Z",
+      "work": {
+        "title": "Gasholder",
+        "creator": "A. Painter",
+        "wikidata": "Q1892745",
+        "accession": {
+          "institution": "did:plc:museum",
+          "id": "T01234",
+          "shelf": "B3"
+        },
+        "image": {
+          "uri": "http://brick:8100/media/x.jpg"
+        }
+      },
+      "matchConfidence": "embedding",
+      "context": {
+        "uri": "spine://records/y"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-09-14T10:00:00Z",
+      "work": {
+        "title": "Gasholder",
+        "creator": "A. Painter",
+        "wikidata": "Q1892745",
+        "accession": {
+          "institution": "did:plc:museum",
+          "id": "T01234"
+        }
+      }
+    }
+  },
+  {
+    "name": "refs: resolver bookkeeping and unknown fields never publish, at any depth",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "read",
+      "note": "Pester",
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "matchConfidence": 0.93,
+          "clusterHint": "c-81",
+          "descriptor": {
+            "label": "The Expansion Project",
+            "creator": "Ben Pester",
+            "note": "with J after hers"
+          },
+          "externalIds": [
+            {
+              "scheme": "wikidata",
+              "id": "Q000000",
+              "confidence": 1
+            },
+            {
+              "scheme": "isbn"
+            }
+          ],
+          "index": {
+            "byteStart": 0,
+            "byteEnd": 6,
+            "extra": true
+          }
+        }
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "read",
+      "note": "Pester",
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "label": "The Expansion Project",
+            "creator": "Ben Pester"
+          },
+          "externalIds": [
+            {
+              "scheme": "wikidata",
+              "id": "Q000000"
+            }
+          ],
+          "index": {
+            "byteStart": 0,
+            "byteEnd": 6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "person ref with only a name never publishes",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "J"
+      }
+    },
+    "expected": null
+  },
+  {
+    "name": "person ref with a DID publishes",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ben Pester"
+      },
+      "did": "did:plc:pester"
+    },
+    "expected": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ben Pester"
+      },
+      "did": "did:plc:pester"
+    }
+  },
+  {
+    "name": "person ref with an external id publishes",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "J. G. Ballard"
+      },
+      "externalIds": [
+        {
+          "scheme": "wikidata",
+          "id": "Q190379"
+        }
+      ]
+    },
+    "expected": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "J. G. Ballard"
+      },
+      "externalIds": [
+        {
+          "scheme": "wikidata",
+          "id": "Q190379"
+        }
+      ]
+    }
+  },
+  {
+    "name": "person ref whose only external id is malformed never publishes",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "J"
+      },
+      "externalIds": [
+        {
+          "scheme": "wikidata"
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "unknown role publishes as mention",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "influencedBy",
+      "descriptor": {
+        "label": "Crash"
+      }
+    },
+    "expected": {
+      "type": "work",
+      "role": "mention",
+      "descriptor": {
+        "label": "Crash"
+      }
+    }
+  },
+  {
+    "name": "ref without a label never publishes",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "creator": "Priest"
+      }
+    },
+    "expected": null
+  },
+  {
+    "name": "ref with a non-integer index publishes without it",
+    "fn": "ref",
+    "body": {
+      "type": "concept",
+      "role": "mention",
+      "descriptor": {
+        "label": "SF New Wave"
+      },
+      "index": {
+        "byteStart": true,
+        "byteEnd": 4
+      }
+    },
+    "expected": {
+      "type": "concept",
+      "role": "mention",
+      "descriptor": {
+        "label": "SF New Wave"
+      }
+    }
+  },
+  {
+    "name": "bead: presentation publishes; its refs lose any index, and bare-name people",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "screening",
+      "presentation": {
+        "format": "IMAX 70mm",
+        "seat": "H12",
+        "venueRef": {
+          "type": "venue",
+          "role": "mention",
+          "descriptor": {
+            "label": "BFI IMAX"
+          },
+          "index": {
+            "byteStart": 0,
+            "byteEnd": 3
+          }
+        },
+        "eventRef": {
+          "type": "person",
+          "role": "mention",
+          "descriptor": {
+            "label": "J"
+          }
+        }
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "screening",
+      "presentation": {
+        "format": "IMAX 70mm",
+        "venueRef": {
+          "type": "venue",
+          "role": "mention",
+          "descriptor": {
+            "label": "BFI IMAX"
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "bead: an empty presentation, and refs that all drop, are omitted",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "watch",
+      "presentation": {
+        "seat": "H12"
+      },
+      "refs": [
+        {
+          "type": "person",
+          "role": "subject",
+          "descriptor": {
+            "label": "J"
+          }
+        }
+      ]
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "kind": "watch"
+    }
+  },
+  {
+    "name": "strand: place name, refs and published items",
+    "fn": "strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-09-14T22:00:00Z",
+      "title": "Sunday",
+      "narrative": "Ballard, again.",
+      "day": "2026-09-14T00:00:00Z",
+      "place": {
+        "name": "Peckham",
+        "geo": {
+          "lat": 51.47,
+          "lng": -0.07,
+          "precision": "1km"
+        }
+      },
+      "items": [
+        {
+          "uri": "spine://records/a"
+        }
+      ],
+      "refs": [
+        {
+          "type": "person",
+          "role": "mention",
+          "descriptor": {
+            "label": "J. G. Ballard"
+          },
+          "externalIds": [
+            {
+              "scheme": "wikidata",
+              "id": "Q190379"
+            }
+          ],
+          "index": {
+            "byteStart": 0,
+            "byteEnd": 7
+          }
+        }
+      ]
+    },
+    "items": [
+      {
+        "uri": "at://did:plc:me/com.cultureblocs.bead/a",
+        "cid": "bafy"
+      }
+    ],
+    "expected": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-09-14T22:00:00Z",
+      "title": "Sunday",
+      "narrative": "Ballard, again.",
+      "day": "2026-09-14T00:00:00Z",
+      "place": {
+        "name": "Peckham"
+      },
+      "refs": [
+        {
+          "type": "person",
+          "role": "mention",
+          "descriptor": {
+            "label": "J. G. Ballard"
+          },
+          "externalIds": [
+            {
+              "scheme": "wikidata",
+              "id": "Q190379"
+            }
+          ],
+          "index": {
+            "byteStart": 0,
+            "byteEnd": 7
+          }
+        }
+      ],
+      "items": [
+        {
+          "uri": "at://did:plc:me/com.cultureblocs.bead/a",
+          "cid": "bafy"
+        }
+      ]
+    }
+  },
+  {
+    "name": "strand: without items (static export) omits the field",
+    "fn": "strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "title": "Sunday",
+      "items": [
+        {
+          "uri": "spine://records/a"
+        }
+      ]
+    },
+    "items": null,
+    "expected": {
+      "$type": "com.cultureblocs.strand",
+      "title": "Sunday"
+    }
+  },
+  {
+    "name": "a bare-name ref of an unrecognised type never publishes: unknown types fail closed, like a person",
+    "fn": "ref",
+    "body": {
+      "type": "Person",
+      "role": "mention",
+      "descriptor": {
+        "label": "J"
+      }
+    },
+    "expected": null
+  },
+  {
+    "name": "an identified ref of an unrecognised type publishes as authored",
+    "fn": "ref",
+    "body": {
+      "type": "individual",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ben Pester"
+      },
+      "did": "did:plc:pester"
+    },
+    "expected": {
+      "type": "individual",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ben Pester"
+      },
+      "did": "did:plc:pester"
+    }
+  },
+  {
+    "name": "bead: top-level text fields publish only as non-empty strings, never as objects",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-09-14T21:04:00Z",
+      "kind": {
+        "k": "watch"
+      },
+      "note": {
+        "text": "with J after hers",
+        "where": "hers"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-09-14T21:04:00Z"
+    }
+  },
+  {
+    "name": "strand: top-level text fields publish only as non-empty strings",
+    "fn": "strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "title": "",
+      "narrative": [
+        "with J"
+      ],
+      "day": "2026-09-14T00:00:00Z"
+    },
+    "items": [],
+    "expected": {
+      "$type": "com.cultureblocs.strand",
+      "day": "2026-09-14T00:00:00Z",
+      "items": []
+    }
+  },
+  {
+    "name": "person ref whose did is not a DID never publishes: a bare name with a made-up did is still a bare name",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "jane"
+    },
+    "expected": null
+  },
+  {
+    "name": "person ref whose did hides a line separator never publishes (the DID pattern is ASCII-only in both languages)",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "did:plc:abc def"
+    },
+    "expected": null
+  },
+  {
+    "name": "person ref with a malformed did but a sound external id publishes without the did",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "jane",
+      "externalIds": [
+        {
+          "scheme": "orcid",
+          "id": "0000-0002-1825-0097"
+        }
+      ]
+    },
+    "expected": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "externalIds": [
+        {
+          "scheme": "orcid",
+          "id": "0000-0002-1825-0097"
+        }
+      ]
+    }
+  },
+  {
+    "name": "person ref with a well-formed did:web publishes",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "did:web:jane-doe.example.com%3A8080"
+    },
+    "expected": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "did:web:jane-doe.example.com%3A8080"
+    }
+  },
+  {
+    "name": "work ref whose descriptor.creatorDid is not a DID publishes without it",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Crash",
+        "creator": "J. G. Ballard",
+        "creatorDid": "jane"
+      }
+    },
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Crash",
+        "creator": "J. G. Ballard"
+      }
+    }
+  },
+  {
+    "name": "work ref with a well-formed descriptor.creatorDid keeps it",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Crash",
+        "creatorDid": "did:plc:ballard"
+      }
+    },
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Crash",
+        "creatorDid": "did:plc:ballard"
+      }
+    }
+  },
+  {
+    "name": "annotation: a work.creatorDid that is not a DID does not publish",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "view",
+      "work": {
+        "title": "Crash",
+        "creator": "J. G. Ballard",
+        "creatorDid": "jane"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "view",
+      "work": {
+        "title": "Crash",
+        "creator": "J. G. Ballard"
+      }
+    }
+  }
+]

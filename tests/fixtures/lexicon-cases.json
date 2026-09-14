@@ -1,0 +1,594 @@
+[
+  {
+    "name": "minimal bead validates",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note"
+    },
+    "problems": []
+  },
+  {
+    "name": "bead missing required kind",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z"
+    },
+    "problems": [
+      "$.kind: required field missing"
+    ]
+  },
+  {
+    "name": "bead missing both required fields reports both",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead"
+    },
+    "problems": [
+      "$.createdAt: required field missing",
+      "$.kind: required field missing"
+    ]
+  },
+  {
+    "name": "createdAt must be ISO 8601",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "15 August 2026",
+      "kind": "note"
+    },
+    "problems": [
+      "$.createdAt: not an ISO 8601 datetime: '15 August 2026'"
+    ]
+  },
+  {
+    "name": "offset datetimes are accepted",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00.123+01:00",
+      "kind": "note"
+    },
+    "problems": []
+  },
+  {
+    "name": "unknown kind is advisory, not an error",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "seance"
+    },
+    "problems": []
+  },
+  {
+    "name": "unknown fields are tolerated for forward compat",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "somethingFromNextYear": {
+        "deep": [
+          1,
+          2
+        ]
+      }
+    },
+    "problems": []
+  },
+  {
+    "name": "note must be a string",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "note": 42
+    },
+    "problems": [
+      "$.note: expected string"
+    ]
+  },
+  {
+    "name": "tags array respects maxLength",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "tags": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i"
+      ]
+    },
+    "problems": [
+      "$.tags: exceeds maxLength 8"
+    ]
+  },
+  {
+    "name": "astral characters count as one grapheme each (JS .length would over-count)",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "tags": [
+        "🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭"
+      ]
+    },
+    "problems": []
+  },
+  {
+    "name": "a genuinely over-long tag fails in both languages",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "tags": [
+        "🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭🎭"
+      ]
+    },
+    "problems": [
+      "$.tags[0]: exceeds maxGraphemes 64"
+    ]
+  },
+  {
+    "name": "subject resolves the placeRef union variant",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "visit",
+      "subject": {
+        "name": "Tate Modern",
+        "geo": {
+          "lat": 51.5,
+          "lng": -0.09,
+          "precision": "exact"
+        }
+      }
+    },
+    "problems": []
+  },
+  {
+    "name": "subject that is not an object matches no union variant",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "visit",
+      "subject": "Tate Modern"
+    },
+    "problems": [
+      "$.subject: does not match any union variant ['com.cultureblocs.defs#placeRef', 'com.cultureblocs.defs#strongRef']"
+    ]
+  },
+  {
+    "name": "geo requires lat, lng and precision",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "visit",
+      "geo": {
+        "lat": 51.5
+      }
+    },
+    "problems": [
+      "$.geo.lng: required field missing",
+      "$.geo.precision: required field missing"
+    ]
+  },
+  {
+    "name": "geo lat must be a number, not a string",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "visit",
+      "geo": {
+        "lat": "51.5",
+        "lng": -0.09,
+        "precision": "exact"
+      }
+    },
+    "problems": [
+      "$.geo.lat: expected number"
+    ]
+  },
+  {
+    "name": "provenance requires app and mintedAt",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "listen",
+      "provenance": {
+        "app": "scrobbler"
+      }
+    },
+    "problems": [
+      "$.provenance.mintedAt: required field missing"
+    ]
+  },
+  {
+    "name": "booleans are not integers",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "images": [
+        {
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreiA"
+            },
+            "mimeType": "image/jpeg",
+            "size": 10
+          },
+          "aspectRatio": {
+            "width": true,
+            "height": 100
+          }
+        }
+      ]
+    },
+    "problems": [
+      "$.images[0].aspectRatio.width: expected integer"
+    ]
+  },
+  {
+    "name": "links need a uri",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "links": [
+        {
+          "title": "on Instagram"
+        }
+      ]
+    },
+    "problems": [
+      "$.links[0].uri: required field missing"
+    ]
+  },
+  {
+    "name": "strand items are strongRefs",
+    "nsid": "com.cultureblocs.strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "items": [
+        {
+          "uri": "spine://records/abc"
+        }
+      ]
+    },
+    "problems": []
+  },
+  {
+    "name": "strand item without a uri fails",
+    "nsid": "com.cultureblocs.strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "items": [
+        {
+          "cid": "bafy"
+        }
+      ]
+    },
+    "problems": [
+      "$.items[0].uri: required field missing"
+    ]
+  },
+  {
+    "name": "creatorDid must look like a DID (reached through annotation.work)",
+    "nsid": "com.cultureblocs.annotation",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "work": {
+        "title": "Weeping Woman",
+        "creatorDid": "@geocontrol"
+      }
+    },
+    "problems": [
+      "$.work.creatorDid: not a DID: '@geocontrol'"
+    ]
+  },
+  {
+    "name": "any object satisfies the subject union: placeRef declares no required fields, so it matches. Pinned because it is surprising, not because it is desirable — a bead can carry a subject that means nothing and still validate.",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "visit",
+      "subject": {
+        "entirelyMadeUp": true
+      }
+    },
+    "problems": []
+  },
+  {
+    "name": "unknown record type",
+    "nsid": "com.cultureblocs.nonesuch",
+    "body": {
+      "$type": "com.cultureblocs.nonesuch"
+    },
+    "problems": [
+      "unknown record type: com.cultureblocs.nonesuch"
+    ]
+  },
+  {
+    "name": "a defs-only lexicon is not a record lexicon",
+    "nsid": "com.cultureblocs.defs",
+    "body": {},
+    "problems": [
+      "com.cultureblocs.defs is not a record lexicon"
+    ]
+  },
+  {
+    "name": "a datetime with a trailing newline is not a datetime",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z\n",
+      "kind": "note"
+    },
+    "problems": [
+      "$.createdAt: not an ISO 8601 datetime: '2026-08-15T10:00:00Z\\n'"
+    ]
+  },
+  {
+    "name": "a datetime written in non-ASCII digits is not a datetime",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "٢٠٢٦-08-15T10:00:00Z",
+      "kind": "note"
+    },
+    "problems": [
+      "$.createdAt: not an ISO 8601 datetime: '٢٠٢٦-08-15T10:00:00Z'"
+    ]
+  },
+  {
+    "name": "a value holding an apostrophe is quoted the way Python quotes it",
+    "nsid": "com.cultureblocs.creative.work",
+    "body": {
+      "$type": "com.cultureblocs.creative.work",
+      "title": "Gasholder",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "credits": [
+        {
+          "name": "J",
+          "did": "J's"
+        }
+      ]
+    },
+    "problems": [
+      "$.credits[0].did: not a DID: \"J's\""
+    ]
+  },
+  {
+    "name": "integers respect minimum",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "images": [
+        {
+          "image": {},
+          "aspectRatio": {
+            "width": 0,
+            "height": 10
+          }
+        }
+      ]
+    },
+    "problems": [
+      "$.images[0].aspectRatio.width: below minimum 1"
+    ]
+  },
+  {
+    "name": "a placeRef with a malformed DID no longer passes as a workRef",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "visit",
+      "subject": {
+        "did": "plc:abc",
+        "name": "Tate"
+      }
+    },
+    "problems": [
+      "$.subject: does not match any union variant ['com.cultureblocs.defs#placeRef', 'com.cultureblocs.defs#strongRef']"
+    ]
+  },
+  {
+    "name": "a bead with refs and a presentation validates; unknown id schemes are carried",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "read",
+      "note": "Pester, again.",
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "label": "The Expansion Project",
+            "creator": "Ben Pester"
+          },
+          "externalIds": [
+            {
+              "scheme": "wikidata",
+              "id": "Q000000"
+            },
+            {
+              "scheme": "somethingNew",
+              "id": "x"
+            }
+          ],
+          "index": {
+            "byteStart": 0,
+            "byteEnd": 6
+          }
+        }
+      ],
+      "presentation": {
+        "format": "hardback",
+        "venueRef": {
+          "type": "venue",
+          "role": "mention",
+          "descriptor": {
+            "label": "Review Bookshop"
+          }
+        }
+      }
+    },
+    "problems": []
+  },
+  {
+    "name": "a ref needs a descriptor",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "watch",
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject"
+        }
+      ]
+    },
+    "problems": [
+      "$.refs[0].descriptor: required field missing"
+    ]
+  },
+  {
+    "name": "a descriptor needs a label",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "watch",
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "creator": "Priest"
+          }
+        }
+      ]
+    },
+    "problems": [
+      "$.refs[0].descriptor.label: required field missing"
+    ]
+  },
+  {
+    "name": "a ref anchor cannot start before the text",
+    "nsid": "com.cultureblocs.strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "items": [],
+      "narrative": "Ballard",
+      "refs": [
+        {
+          "type": "person",
+          "role": "mention",
+          "descriptor": {
+            "label": "J. G. Ballard"
+          },
+          "index": {
+            "byteStart": -1,
+            "byteEnd": 7
+          }
+        }
+      ]
+    },
+    "problems": [
+      "$.refs[0].index.byteStart: below minimum 0"
+    ]
+  },
+  {
+    "name": "an annotation carries refs beside its work",
+    "nsid": "com.cultureblocs.annotation",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "work": {
+        "title": "Gasholder"
+      },
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "label": "Gasholder"
+          }
+        }
+      ]
+    },
+    "problems": []
+  },
+  {
+    "name": "a DID with a carriage return in it is not a DID (Python's . matched it, JS's did not)",
+    "nsid": "com.cultureblocs.creative.work",
+    "body": {
+      "$type": "com.cultureblocs.creative.work",
+      "title": "Gasholder",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "credits": [
+        {
+          "name": "J",
+          "did": "did:plc:abc\rdef"
+        }
+      ]
+    },
+    "problems": [
+      "$.credits[0].did: not a DID: 'did:plc:abc\\rdef'"
+    ]
+  },
+  {
+    "name": "DIDs with dots, colons, percent-escapes and hyphens still validate",
+    "nsid": "com.cultureblocs.creative.work",
+    "body": {
+      "$type": "com.cultureblocs.creative.work",
+      "title": "Gasholder",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "credits": [
+        {
+          "name": "J",
+          "did": "did:web:studio-j.example.com%3A8080:people"
+        },
+        {
+          "name": "K",
+          "did": "did:plc:ewvi7nxzyoun6zhxrhs64oiz"
+        }
+      ]
+    },
+    "problems": []
+  }
+]

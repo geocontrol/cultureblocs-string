@@ -3,9 +3,11 @@
 
 Interfaces:
   POST  /records          batch ingest, idempotent on dedupeKey
-  GET   /records          query by ?day=YYYY-MM-DD&type=&sourceApp=
+  GET   /records          query by ?day=YYYY-MM-DD&type=&sourceApp=&state=
   GET   /records/{id}     single record
-  PATCH /records/{id}     shallow-merge body fields (annotation edits)
+  PATCH /records/{id}     shallow-merge body fields (annotation edits);
+                          honours If-Match: <hlc> as a precondition
+  POST  /records/{id}/state  proposal -> kept ("release"), and friends
   GET   /changes?since=N  append-only change feed with cursor (sync consumers)
   GET   /days             days with record counts (timeline nav)
   GET   /lexicons         the loaded schema set
@@ -13,6 +15,12 @@ Interfaces:
 
 Auth: if SPINE_TOKEN is set, all endpoints require
       Authorization: Bearer <token>. Unset = open (home lab mode).
+
+Every write records who made it: an optional X-Device-Id header names the
+device, and the actor is derived from how the request authenticated. Neither
+is a security control — the token is still the only gate — but a change feed
+that cannot say which device wrote a row cannot be replayed by a second one
+without it echoing its own writes back at itself.
 """
 from __future__ import annotations
 
@@ -26,8 +34,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import publisher
-from .db import Store
+from . import publisher, refs
+from .db import STATES, Store
 from .lexicon import LexiconRegistry
 
 DB_PATH = os.environ.get("STRING_DB") or os.environ.get("SPINE_DB", "/data/string.db")
@@ -40,7 +48,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-store = Store(DB_PATH)
+store = Store(DB_PATH)   # node id for HLC stamps comes from STRING_DEVICE_ID
 registry = LexiconRegistry()
 registry.load_dir(LEXICON_DIR)
 
@@ -53,12 +61,24 @@ def auth(request: Request) -> None:
         raise HTTPException(status_code=401, detail="invalid or missing token")
 
 
+class Origin(BaseModel):
+    """Who made this write, for the change feed. Not an authorisation claim."""
+    device: str | None = None
+    actor: str | None = None
+
+
+def origin(request: Request) -> Origin:
+    device = (request.headers.get("x-device-id") or "").strip()[:64] or None
+    return Origin(device=device, actor="token" if TOKEN else "local")
+
+
 class RecordIn(BaseModel):
     dedupeKey: str = Field(..., min_length=1, max_length=200)
     type: str
     sourceApp: str = Field(..., max_length=100)
     createdAt: str
     body: dict
+    state: str = "kept"
 
 
 class BatchIn(BaseModel):
@@ -76,29 +96,37 @@ def lexicons():
 
 
 @app.post("/records", dependencies=[Depends(auth)])
-def ingest(batch: BatchIn):
+def ingest(batch: BatchIn, org: Origin = Depends(origin)):
     results = []
     for rec in batch.records:
         if rec.type not in registry.docs:
             results.append({"dedupeKey": rec.dedupeKey, "status": "invalid",
                             "problems": [f"unknown record type: {rec.type}"]})
             continue
-        problems = registry.validate_record(rec.type, rec.body)
+        if rec.state not in STATES:
+            results.append({"dedupeKey": rec.dedupeKey, "status": "invalid",
+                            "problems": [f"unknown state: {rec.state}"]})
+            continue
+        body = refs.mirror_annotation_work(rec.type, rec.body)
+        problems = (registry.validate_record(rec.type, body)
+                    + refs.anchor_problems(rec.type, body))
         if problems:
             results.append({"dedupeKey": rec.dedupeKey, "status": "invalid",
                             "problems": problems})
             continue
         rid, status = store.upsert(
-            rec.dedupeKey, rec.type, rec.sourceApp, rec.createdAt, rec.body)
+            rec.dedupeKey, rec.type, rec.sourceApp, rec.createdAt, body,
+            state=rec.state, device=org.device, actor=org.actor)
         results.append({"dedupeKey": rec.dedupeKey, "status": status, "id": rid})
     return {"results": results}
 
 
 @app.get("/records", dependencies=[Depends(auth)])
 def query(day: str | None = None, type: str | None = None,
-          sourceApp: str | None = None, limit: int = 500):
-    return {"records": store.query(day=day, rtype=type,
-                                   source_app=sourceApp, limit=min(limit, 2000))}
+          sourceApp: str | None = None, state: str | None = None,
+          limit: int = 500):
+    return {"records": store.query(day=day, rtype=type, source_app=sourceApp,
+                                   state=state, limit=min(limit, 2000))}
 
 
 @app.get("/records/{rid}", dependencies=[Depends(auth)])
@@ -114,15 +142,54 @@ class PatchIn(BaseModel):
 
 
 @app.patch("/records/{rid}", dependencies=[Depends(auth)])
-def patch(rid: str, body: PatchIn):
+def patch(rid: str, body: PatchIn, request: Request,
+          org: Origin = Depends(origin)):
+    """Edit an envelope. Send `If-Match: <hlc>` — the hlc of the version you
+    were editing — and the write is refused with 412 if the record has moved
+    on since. Without the header the old last-writer-wins applies, so
+    existing clients are unaffected."""
     current = store.get(rid)
     if current is None:
         raise HTTPException(status_code=404, detail="not found")
-    merged = {**current["body"], **body.fields}
-    problems = registry.validate_record(current["type"], merged)
+    requested = {**current["body"], **body.fields}
+    merged = refs.mirror_annotation_work(current["type"], requested)
+    problems = (registry.validate_record(current["type"], merged)
+                + refs.anchor_problems(current["type"], merged))
     if problems:
         raise HTTPException(status_code=422, detail=problems)
-    return store.patch(rid, body.fields)
+    fields = body.fields if merged is requested else {**body.fields, "refs": merged["refs"]}
+    expect = (request.headers.get("if-match") or "").strip('"') or None
+    result = store.patch(rid, fields, expect_hlc=expect,
+                         device=org.device, actor=org.actor)
+    if result is store.STALE:
+        raise HTTPException(status_code=412, detail={
+            "error": "record has changed since you loaded it",
+            "yourHlc": expect, "currentHlc": current["hlc"],
+            "current": current})
+    if result is None:
+        raise HTTPException(status_code=404, detail="not found")
+    return result
+
+
+class StateIn(BaseModel):
+    state: str
+
+
+@app.post("/records/{rid}/state", dependencies=[Depends(auth)])
+def set_state(rid: str, body: StateIn, org: Origin = Depends(origin)):
+    """Move a record between proposal / kept / draft / published / edited.
+
+    `proposal -> kept` is a person standing behind a machine's suggestion.
+    Until it happens, a later run of that connector may revise the record;
+    afterwards it is yours and nothing but you may rewrite it. Discarding a
+    proposal is still DELETE /records/{id} — the timeline's "release"."""
+    try:
+        rec = store.set_state(rid, body.state, device=org.device, actor=org.actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if rec is None:
+        raise HTTPException(status_code=404, detail="not found")
+    return rec
 
 
 @app.get("/changes", dependencies=[Depends(auth)])
@@ -207,10 +274,10 @@ def clear_published(rid: str):
 
 
 @app.delete("/records/{rid}", dependencies=[Depends(auth)])
-def delete(rid: str):
+def delete(rid: str, org: Origin = Depends(origin)):
     """For curation records (strands). Beads are mint facts — the UI should
     not offer deletion for them, but the API does not police intent."""
-    if not store.delete(rid):
+    if not store.delete(rid, device=org.device, actor=org.actor):
         raise HTTPException(status_code=404, detail="not found")
     return {"deleted": rid}
 
