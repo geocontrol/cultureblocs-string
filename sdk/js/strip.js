@@ -18,6 +18,7 @@
 
 const ANNOTATION = 'com.cultureblocs.annotation';
 const ROLES = ['subject', 'mention'];
+const NON_PERSON_TYPES = ['work', 'event', 'venue', 'concept'];
 const BEAD_KEEP = ['createdAt', 'kind', 'note'];
 const STRAND_KEEP = ['createdAt', 'title', 'narrative', 'day'];
 
@@ -68,7 +69,7 @@ export function stripRef(ref, anchored = true) {
   if (str(ref.did)) out.did = ref.did;
   const ids = stripExternalIds(ref.externalIds);
   if (ids.length) out.externalIds = ids;
-  if (ref.type === 'person' && !('did' in out) && !ids.length) return null;
+  if (!NON_PERSON_TYPES.includes(ref.type) && !('did' in out) && !ids.length) return null; // unknown types fail closed
   const index = ref.index;
   if (anchored && isObject(index) && Number.isInteger(index.byteStart) && Number.isInteger(index.byteEnd)) {
     out.index = { byteStart: index.byteStart, byteEnd: index.byteEnd };
@@ -115,7 +116,7 @@ function common(body, out) {
  * empty husk. `images` are imageRefs the caller has already uploaded. */
 export function stripBead(body, { images = null } = {}) {
   const out = { $type: requireType(body) };
-  for (const k of BEAD_KEEP) if (k in body) out[k] = body[k];
+  for (const k of BEAD_KEEP) if (str(body[k])) out[k] = body[k];
   if (isObject(body.subject) && str(body.subject.name)) out.subject = { name: body.subject.name };
   if (body.$type === ANNOTATION) {
     const work = stripWorkRef(body.work);
@@ -134,7 +135,7 @@ export function stripBead(body, { images = null } = {}) {
  * export) passes null, and the field is omitted. */
 export function stripStrand(body, items) {
   const out = { $type: requireType(body) };
-  for (const k of STRAND_KEEP) if (k in body) out[k] = body[k];
+  for (const k of STRAND_KEEP) if (str(body[k])) out[k] = body[k];
   if (isObject(body.place) && str(body.place.name)) out.place = { name: body.place.name };
   common(body, out);
   if (items !== null && items !== undefined) out.items = items;

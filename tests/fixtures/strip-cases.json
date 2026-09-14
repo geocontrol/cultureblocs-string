@@ -799,5 +799,74 @@
       "$type": "com.cultureblocs.strand",
       "title": "Sunday"
     }
+  },
+  {
+    "name": "a bare-name ref of an unrecognised type never publishes: unknown types fail closed, like a person",
+    "fn": "ref",
+    "body": {
+      "type": "Person",
+      "role": "mention",
+      "descriptor": {
+        "label": "J"
+      }
+    },
+    "expected": null
+  },
+  {
+    "name": "an identified ref of an unrecognised type publishes as authored",
+    "fn": "ref",
+    "body": {
+      "type": "individual",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ben Pester"
+      },
+      "did": "did:plc:pester"
+    },
+    "expected": {
+      "type": "individual",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ben Pester"
+      },
+      "did": "did:plc:pester"
+    }
+  },
+  {
+    "name": "bead: top-level text fields publish only as non-empty strings, never as objects",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-09-14T21:04:00Z",
+      "kind": {
+        "k": "watch"
+      },
+      "note": {
+        "text": "with J after hers",
+        "where": "hers"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-09-14T21:04:00Z"
+    }
+  },
+  {
+    "name": "strand: top-level text fields publish only as non-empty strings",
+    "fn": "strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "title": "",
+      "narrative": [
+        "with J"
+      ],
+      "day": "2026-09-14T00:00:00Z"
+    },
+    "items": [],
+    "expected": {
+      "$type": "com.cultureblocs.strand",
+      "day": "2026-09-14T00:00:00Z",
+      "items": []
+    }
   }
 ]

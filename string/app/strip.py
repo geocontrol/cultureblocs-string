@@ -13,6 +13,7 @@ from __future__ import annotations
 
 ANNOTATION = "com.cultureblocs.annotation"
 ROLES = ("subject", "mention")
+NON_PERSON_TYPES = ("work", "event", "venue", "concept")
 BEAD_FIELDS = ("createdAt", "kind", "note")
 STRAND_FIELDS = ("createdAt", "title", "narrative", "day")
 
@@ -76,8 +77,8 @@ def strip_ref(ref, anchored: bool = True) -> dict | None:
     ids = strip_external_ids(ref.get("externalIds"))
     if ids:
         out["externalIds"] = ids
-    if ref["type"] == "person" and "did" not in out and not ids:
-        return None  # a bare name may be a private individual
+    if ref["type"] not in NON_PERSON_TYPES and "did" not in out and not ids:
+        return None  # a bare name may be a private individual; unknown types fail closed
     index = ref.get("index")
     if anchored and isinstance(index, dict) \
             and _int(index.get("byteStart")) and _int(index.get("byteEnd")):
@@ -135,7 +136,7 @@ def strip_bead(body: dict, images: list | None = None) -> dict:
     """
     out = _head(body)
     for k in BEAD_FIELDS:
-        if k in body:
+        if _str(body.get(k)):
             out[k] = body[k]
     subject = body.get("subject")
     if isinstance(subject, dict) and _str(subject.get("name")):
@@ -158,7 +159,7 @@ def strip_strand(body: dict, items: list[dict] | None = None) -> dict:
     filled in at publish time; omitted for targets that bundle items inline."""
     out = _head(body)
     for k in STRAND_FIELDS:
-        if k in body:
+        if _str(body.get(k)):
             out[k] = body[k]
     place = body.get("place")
     if isinstance(place, dict) and _str(place.get("name")):
