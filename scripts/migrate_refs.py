@@ -17,7 +17,7 @@ copy of the database is written next to it before any change.
 """
 from __future__ import annotations
 
-import shutil
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -38,12 +38,29 @@ def migrate(store: Store) -> int:
     return changed
 
 
+def backup_database(source: Path, target: Path) -> None:
+    """Copy a live SQLite database, including writes still in its WAL.
+
+    Copying the .db file alone is not a backup: the String runs in WAL mode,
+    and until a checkpoint the newest records exist only in the -wal file.
+    SQLite's online backup API reads through the WAL and yields one
+    self-contained file.
+    """
+    src = sqlite3.connect(source)
+    dst = sqlite3.connect(target)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+
+
 def main(db_path: str) -> None:
     p = Path(db_path)
     if not p.exists():
         sys.exit(f"no database at {p}")
     backup = p.with_name(f"{p.stem}.pre-refs-{int(time.time())}{p.suffix}")
-    shutil.copy2(p, backup)
+    backup_database(p, backup)
     print(f"backup: {backup}")
     print(f"annotations given a subject ref: {migrate(Store(str(p)))}")
 

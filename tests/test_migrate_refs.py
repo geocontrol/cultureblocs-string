@@ -1,5 +1,6 @@
 """scripts/migrate_refs.py backfills annotation subject refs, once."""
 import importlib.util
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -30,3 +31,24 @@ def test_backfills_annotations_once_and_leaves_beads_alone(tmp_path: Path) -> No
     revision = store.get(ann)["revision"]
     assert migrate_refs.migrate(store) == 0
     assert store.get(ann)["revision"] == revision
+
+
+def test_main_backs_up_writes_still_in_the_wal(tmp_path: Path) -> None:
+    """The String runs SQLite in WAL mode and is not guaranteed to checkpoint
+    on shutdown, so the newest records may live only in string.db-wal. The
+    backup must still contain them."""
+    path = tmp_path / "string.db"
+    live = Store(str(path))          # stays open: nothing checkpoints the WAL
+    live.upsert("a1", "com.cultureblocs.annotation", "ar", T,
+                {"createdAt": T, "work": {"title": "Gasholder"}})
+
+    migrate_refs.main(str(path))
+
+    backups = list(tmp_path.glob("string.pre-refs-*.db"))
+    assert len(backups) == 1
+    conn = sqlite3.connect(backups[0])
+    try:
+        rows = conn.execute("SELECT body FROM records").fetchall()
+    finally:
+        conn.close()
+    assert len(rows) == 1 and "refs" not in rows[0][0], "backup must predate the migration"
