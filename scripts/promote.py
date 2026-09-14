@@ -39,6 +39,9 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "string"))
+from app.strip import strip_bead, strip_strand  # noqa: E402  (the one canonical strip)
+
 STRAND = "com.cultureblocs.strand"
 BEAD_TYPES = ("com.cultureblocs.bead", "com.cultureblocs.annotation")
 
@@ -81,33 +84,6 @@ def xrpc(args, method: str, *, params: dict | None = None,
     if params:
         url += "?" + urllib.parse.urlencode(params)
     return http(url, body=body, token=token)
-
-
-# ---------------- privacy strip ----------------
-def strip_bead(body: dict) -> dict:
-    """Public subset of a bead/annotation. Same discipline as the static
-    exporter: geo out, provenance out, media out (release one), device
-    internals out. Place names, notes, tags, links, works survive."""
-    out = {"$type": body["$type"]}
-    for k in ("createdAt", "kind", "note", "tags", "links", "work"):
-        if k in body:
-            out[k] = body[k]
-    subj = body.get("subject")
-    if isinstance(subj, dict) and subj.get("name"):
-        out["subject"] = {"name": subj["name"]}
-    return out
-
-
-def strip_strand(body: dict, items: list[dict]) -> dict:
-    out = {"$type": body["$type"]}
-    for k in ("createdAt", "title", "narrative", "day", "links"):
-        if k in body:
-            out[k] = body[k]
-    place = body.get("place")
-    if isinstance(place, dict) and place.get("name"):
-        out["place"] = {"name": place["name"]}
-    out["items"] = items                       # strongRefs, filled at publish
-    return out
 
 
 def content_hash(obj: dict) -> str:

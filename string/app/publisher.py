@@ -2,8 +2,7 @@
 
 The same Stage F pipeline as scripts/promote.py, running inside the
 service so the timeline can publish with one click using a held
-identity. Strip rules are identical: geo, provenance and media never
-leave; place names, notes, tags, links, works survive.
+identity. What may leave is decided in strip.py, the one canonical copy.
 """
 from __future__ import annotations
 
@@ -11,6 +10,8 @@ import hashlib
 import json
 import urllib.parse
 import urllib.request
+
+from .strip import strip_bead, strip_public, strip_strand  # noqa: F401 (re-exported)
 
 STRAND = "com.cultureblocs.strand"
 BEAD_TYPES = ("com.cultureblocs.bead", "com.cultureblocs.annotation")
@@ -37,35 +38,6 @@ def _xrpc(pds: str, method: str, *, body: dict | None = None,
     with urllib.request.urlopen(req, timeout=30) as r:
         raw = r.read()
         return json.loads(raw) if raw else {}
-
-
-def strip_bead(body: dict, *, images: list | None = None) -> dict:
-    """Public subset. Local `media` refs never publish; if the caller has
-    uploaded them, they arrive as `images` — imageRefs carrying the blob plus
-    the alt text and dimensions from the local record."""
-    out = {"$type": body["$type"]}
-    for k in ("createdAt", "kind", "note", "tags", "links", "work"):
-        if k in body:
-            out[k] = body[k]
-    subj = body.get("subject")
-    if isinstance(subj, dict) and subj.get("name"):
-        out["subject"] = {"name": subj["name"]}
-    if images:
-        out["images"] = images
-    return out
-
-
-def strip_strand(body: dict, items: list[dict]) -> dict:
-    out = {"$type": body["$type"]}
-    for k in ("createdAt", "title", "narrative", "day", "links"):
-        if k in body:
-            out[k] = body[k]
-    place = body.get("place")
-    if isinstance(place, dict) and place.get("name"):
-        out["place"] = {"name": place["name"]}
-    out["items"] = items
-    return out
-
 
 def content_hash(obj: dict) -> str:
     return hashlib.sha256(
@@ -150,17 +122,6 @@ PUBLIC_TYPES = ("com.cultureblocs.creative.profile", "com.cultureblocs.creative.
                 "community.lexicon.calendar.event", "community.lexicon.calendar.rsvp")
 
 SELF_KEYED = ("com.cultureblocs.creative.profile", "com.cultureblocs.venue.profile")
-
-
-def strip_public(body: dict) -> dict:
-    """Records that are public by intent (creative claims, venue listings).
-
-    These are written to be read by strangers, so the body publishes as
-    authored — minus local-only machinery: provenance (device/app internals)
-    and `media` refs that point at files on the author's own String. A venue's
-    address and coordinates are the point of the record and stay.
-    """
-    return {k: v for k, v in body.items() if k not in ("provenance", "media")}
 
 
 def publish_record(store, record_id: str, identity: dict) -> dict:

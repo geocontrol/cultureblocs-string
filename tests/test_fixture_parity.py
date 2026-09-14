@@ -1,8 +1,8 @@
 """The shared fixture suites, run against the Python implementations.
 
 tests/fixtures/*.json are the contract between string/app/lexicon.py and
-sdk/js/lexicon.js, between string/app/publisher.py's strip functions and
-sdk/js/strip.js, and between string/app/refs.py and sdk/js/refs.js. Both languages run these same cases: see
+sdk/js/lexicon.js, between string/app/strip.py and sdk/js/strip.js, and
+between string/app/refs.py and sdk/js/refs.js. Both languages run these same cases: see
 sdk/js/test/*.test.mjs for the other half.
 
 If you change a validator or a strip rule, change the fixture — and both
@@ -17,7 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "string"))
 from app.lexicon import LexiconRegistry  # noqa: E402
-from app import publisher, refs  # noqa: E402
+from app import refs, strip  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
 
@@ -46,11 +46,13 @@ def test_lexicon_fixture(registry, case):
 @pytest.mark.parametrize("case", STRIP_CASES, ids=lambda c: c["name"][:60])
 def test_strip_fixture(case):
     if case["fn"] == "bead":
-        got = publisher.strip_bead(case["body"], images=case.get("images"))
+        got = strip.strip_bead(case["body"], images=case.get("images"))
     elif case["fn"] == "strand":
-        got = publisher.strip_strand(case["body"], case.get("items", []))
+        got = strip.strip_strand(case["body"], case.get("items", []))
     elif case["fn"] == "public":
-        got = publisher.strip_public(case["body"])
+        got = strip.strip_public(case["body"])
+    elif case["fn"] == "ref":
+        got = strip.strip_ref(case["body"])
     else:
         raise AssertionError(f"unknown strip fn: {case['fn']}")
     assert got == case["expected"]

@@ -119,9 +119,10 @@ the org — same desk, different letterhead. CLI equivalent:
     python scripts/promote.py publish <record-id> --identity venue   # listings, claims
     python scripts/promote.py status          # drift since publish
 
-What publishes: place names, notes, tags, links, works, kinds, times.
-What never leaves: geo coordinates, provenance, device ids, mintIds,
-and (release one) media. Full details in [PROMOTER.md](PROMOTER.md).
+What publishes: place names, notes, tags, links, kinds, times, and refs —
+what an entry is about. What never leaves: geo coordinates, provenance,
+device ids, mintIds, local media, and any person named only by name.
+Full details in [PROMOTER.md](PROMOTER.md).
 
 Published strands render anywhere via the embed component — live from
 a repo (`<cultureblocs-strands actor="handle">`) or from a baked export
@@ -186,10 +187,11 @@ so the dotted rail looks exactly as it did before.
     python -m pytest tests/
     node --test "sdk/js/test/*.test.mjs"     # and easel/, web/, catalogue/
 
-`tests/fixtures/lexicon-cases.json` and `strip-cases.json` are run by
-both languages. They are the contract between `string/app/lexicon.py`
-and `sdk/js/lexicon.js`, and between the publisher's strip and
-`sdk/js/strip.js` — change a rule and you change the fixture, and both
+`tests/fixtures/lexicon-cases.json`, `strip-cases.json` and
+`refs-cases.json` are run by both languages. They are the contract
+between `string/app/lexicon.py` and `sdk/js/lexicon.js`, between
+`string/app/strip.py` and `sdk/js/strip.js`, and between
+`string/app/refs.py` and `sdk/js/refs.js` — change a rule and you change the fixture, and both
 implementations tell you whether they still agree. The strip fixtures
 decide what leaves your machine; treat them as the tests to be most
 suspicious of.

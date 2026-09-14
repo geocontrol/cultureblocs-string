@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stripBead, stripStrand, stripPublic, canonicalJSON, contentHash } from '../strip.js';
+import { stripBead, stripStrand, stripPublic, stripRef, canonicalJSON, contentHash } from '../strip.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const cases = JSON.parse(readFileSync(join(ROOT, 'tests/fixtures/strip-cases.json'), 'utf8'));
@@ -16,8 +16,9 @@ for (const c of cases) {
   test(`strip fixture: ${c.name}`, () => {
     let got;
     if (c.fn === 'bead') got = stripBead(c.body, { images: c.images ?? null });
-    else if (c.fn === 'strand') got = stripStrand(c.body, c.items ?? []);
+    else if (c.fn === 'strand') got = stripStrand(c.body, 'items' in c ? c.items : []);
     else if (c.fn === 'public') got = stripPublic(c.body);
+    else if (c.fn === 'ref') got = stripRef(c.body);
     else assert.fail(`unknown strip fn: ${c.fn}`);
     assert.deepEqual(got, c.expected);
   });

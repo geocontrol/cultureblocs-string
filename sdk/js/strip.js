@@ -1,27 +1,40 @@
 /* The privacy strip — what leaves the machine when a record publishes.
  *
- * A faithful port of string/app/publisher.py's strip_bead / strip_strand /
- * strip_public, so a client that publishes directly (Pocket, Easel, Loom)
- * and the String's server-side publisher cannot disagree about what is
- * private. They agreed by inspection before; tests/fixtures/strip-cases.json
- * is run by both languages so they keep agreeing.
+ * A port of string/app/strip.py, the canonical copy the String's publisher,
+ * scripts/promote.py and scripts/export_public.py all use, so a client that
+ * publishes directly (Pocket, Easel, Loom) and the String cannot disagree
+ * about what is private. tests/fixtures/strip-cases.json is run by both
+ * languages so they keep agreeing.
  *
- * The rule, in one line: geo, provenance, device ids, mintIds and local media
- * refs never leave. Place NAMES, notes, tags, links, works, kinds and times do.
+ * Allow lists all the way down: a field not named here does not publish, at
+ * any depth, so a new lexicon field stays private until someone decides
+ * otherwise and adds a fixture saying so. Geo, provenance, device ids,
+ * mintIds, local media refs and resolver bookkeeping never leave. A person
+ * ref publishes only with a DID or an external identifier: a bare name may
+ * be a private individual.
  *
  * CANONICAL COPY. Apps carry copies; copy outward from here.
  */
 
-/* Fields of a bead or annotation that survive publication, in the order the
- * Python writes them — canonical JSON sorts keys anyway, but keeping the
- * order identical makes the two implementations diff cleanly by eye. */
-const BEAD_KEEP = ['createdAt', 'kind', 'note', 'tags', 'links', 'work'];
-const STRAND_KEEP = ['createdAt', 'title', 'narrative', 'day', 'links'];
+const ANNOTATION = 'com.cultureblocs.annotation';
+const ROLES = ['subject', 'mention'];
+const BEAD_KEEP = ['createdAt', 'kind', 'note'];
+const STRAND_KEEP = ['createdAt', 'title', 'narrative', 'day'];
 
 /* Local-only machinery on an otherwise public-by-intent record. `provenance`
  * is device and app internals; `media` points at files on the author's own
  * String, which no stranger can resolve. */
 const LOCAL_ONLY = ['provenance', 'media'];
+
+const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+const str = (v) => typeof v === 'string' && v !== '';
+const list = (v) => (Array.isArray(v) ? v : []);
+
+function pick(d, keys) {
+  const out = {};
+  for (const k of keys) if (str(d[k])) out[k] = d[k];
+  return out;
+}
 
 function requireType(body) {
   if (!body || typeof body['$type'] !== 'string') {
@@ -30,34 +43,101 @@ function requireType(body) {
   return body['$type'];
 }
 
+/* linkRefs: uri and title only. */
+export const stripLinks = (links) =>
+  list(links).filter((l) => isObject(l) && str(l.uri)).map((l) => pick(l, ['uri', 'title']));
+
+export const stripTags = (tags) => list(tags).filter(str);
+
+/* externalIds: scheme, id and uri; entries without scheme and id are dropped. */
+export const stripExternalIds = (ids) =>
+  list(ids).filter((e) => isObject(e) && str(e.scheme) && str(e.id))
+    .map((e) => pick(e, ['scheme', 'id', 'uri']));
+
+/* The public form of one #ref, or null if it must not publish. `anchored` is
+ * false for presentation refs, which have no text to anchor into. */
+export function stripRef(ref, anchored = true) {
+  if (!isObject(ref) || !str(ref.type)) return null;
+  const descriptor = ref.descriptor;
+  if (!isObject(descriptor) || !str(descriptor.label)) return null;
+  const out = {
+    type: ref.type,
+    role: ROLES.includes(ref.role) ? ref.role : 'mention',
+    descriptor: pick(descriptor, ['label', 'creator', 'creatorDid', 'date']),
+  };
+  if (str(ref.did)) out.did = ref.did;
+  const ids = stripExternalIds(ref.externalIds);
+  if (ids.length) out.externalIds = ids;
+  if (ref.type === 'person' && !('did' in out) && !ids.length) return null;
+  const index = ref.index;
+  if (anchored && isObject(index) && Number.isInteger(index.byteStart) && Number.isInteger(index.byteEnd)) {
+    out.index = { byteStart: index.byteStart, byteEnd: index.byteEnd };
+  }
+  return out;
+}
+
+export const stripRefs = (refs) => list(refs).map((r) => stripRef(r)).filter((r) => r !== null);
+
+export function stripPresentation(presentation) {
+  if (!isObject(presentation)) return null;
+  const out = pick(presentation, ['format']);
+  for (const key of ['venueRef', 'eventRef']) {
+    const ref = stripRef(presentation[key], false);
+    if (ref !== null) out[key] = ref;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/* Deprecated #workRef on annotations: identifiers and descriptors, never `image`. */
+export function stripWorkRef(work) {
+  if (!isObject(work)) return null;
+  const out = pick(work, ['title', 'creator', 'date', 'wikidata', 'linkedArt', 'creatorDid']);
+  const acc = work.accession;
+  if (isObject(acc) && str(acc.institution) && str(acc.id)) out.accession = pick(acc, ['institution', 'id']);
+  return out;
+}
+
+function common(body, out) {
+  const tags = stripTags(body.tags);
+  if (tags.length) out.tags = tags;
+  const links = stripLinks(body.links);
+  if (links.length) out.links = links;
+  const refs = stripRefs(body.refs);
+  if (refs.length) out.refs = refs;
+  return out;
+}
+
 /* A bead or annotation, as it publishes inside a strand.
  *
  * `subject` is reduced to its name and nothing else: the whole point is that
  * "Tate Modern" publishes while the coordinates that would place you in it
  * do not. A subject with no name drops entirely rather than publishing an
- * empty husk. */
+ * empty husk. `images` are imageRefs the caller has already uploaded. */
 export function stripBead(body, { images = null } = {}) {
   const out = { $type: requireType(body) };
   for (const k of BEAD_KEEP) if (k in body) out[k] = body[k];
-  const subj = body.subject;
-  if (subj && typeof subj === 'object' && !Array.isArray(subj) && subj.name) {
-    out.subject = { name: subj.name };
+  if (isObject(body.subject) && str(body.subject.name)) out.subject = { name: body.subject.name };
+  if (body.$type === ANNOTATION) {
+    const work = stripWorkRef(body.work);
+    if (work !== null) out.work = work;
   }
+  const presentation = stripPresentation(body.presentation);
+  if (presentation !== null) out.presentation = presentation;
+  common(body, out);
   if (images && images.length) out.images = images;
   return out;
 }
 
 /* A strand. `items` are the at:// refs of the beads already published above
  * it — never the local spine:// uris, which is why they are passed in rather
- * than copied from the body. */
+ * than copied from the body. A target that bundles items inline (the static
+ * export) passes null, and the field is omitted. */
 export function stripStrand(body, items) {
   const out = { $type: requireType(body) };
   for (const k of STRAND_KEEP) if (k in body) out[k] = body[k];
-  const place = body.place;
-  if (place && typeof place === 'object' && !Array.isArray(place) && place.name) {
-    out.place = { name: place.name };
-  }
-  out.items = items;
+  if (isObject(body.place) && str(body.place.name)) out.place = { name: body.place.name };
+  common(body, out);
+  if (items !== null && items !== undefined) out.items = items;
   return out;
 }
 
@@ -68,7 +148,7 @@ export function stripStrand(body, items) {
  * Note the asymmetry with stripBead: this is a DENY list, so a field added
  * to one of those lexicons publishes automatically. That is deliberate for
  * records whose purpose is to be read, and wrong for a diary bead — hence
- * the allow list above. A venue's address and coordinates are the point of
+ * the allow lists above. A venue's address and coordinates are the point of
  * the record and stay. */
 export function stripPublic(body) {
   const out = {};
