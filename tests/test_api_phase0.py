@@ -43,6 +43,18 @@ def test_the_scrobbler_cycle_propose_revise_keep_refuse(client):
     assert client.get(f"/records/{first['id']}").json()["body"]["note"] == "11 tracks"
 
 
+def test_a_patched_proposal_survives_the_next_connector_run(client):
+    first = ingest(client, "scrobble:me:1", "8 tracks", state="proposal")
+    edited = client.patch(f"/records/{first['id']}",
+                          json={"fields": {"note": "the one where it rained"}})
+    assert edited.status_code == 200 and edited.json()["state"] == "kept"
+
+    again = ingest(client, "scrobble:me:1", "8 tracks", state="proposal")
+    assert again["status"] == "duplicate"
+    rec = client.get(f"/records/{first['id']}").json()
+    assert rec["body"]["note"] == "the one where it rained" and rec["state"] == "kept"
+
+
 def test_records_can_be_filtered_by_state(client):
     ingest(client, "a", state="proposal")
     ingest(client, "b", app_name="pocket")

@@ -176,18 +176,29 @@ class Store:
         polls a source can legitimately learn more about a moment it already
         described (a scrobble session that turned out to have three more
         tracks, a booking whose venue was corrected). While nobody has kept
-        it, revising it loses nothing. The moment a person keeps it, it
-        becomes theirs and the machine cannot touch it again.
+        it, revising it loses nothing. The moment a person keeps it — or
+        edits it, which keeps it (see patch) — it becomes theirs and the
+        machine cannot touch it again.
+
+        Two more cases are left alone. A re-run that sends the body already
+        stored (compared as parsed JSON, so key order does not matter) says
+        nothing new and writes nothing: no revision, no stamp, no change row
+        — a connector re-sending the last 48 hours every hour must not churn
+        the change feed. And a proposal that already has a public twin
+        (published_uri set) is never revised underneath it.
 
         Returns status 'created', 'updated' (a proposal revised) or
         'duplicate' (left alone).
         """
         cur = self.conn.execute(
-            "SELECT id, state FROM records WHERE dedupe_key = ?", (dedupe_key,))
+            "SELECT id, state, published_uri, body FROM records WHERE dedupe_key = ?",
+            (dedupe_key,))
         row = cur.fetchone()
         payload = json.dumps(body, separators=(",", ":"))
         if row:
-            revisable = row["state"] == "proposal" and state == "proposal"
+            revisable = (row["state"] == "proposal" and state == "proposal"
+                         and row["published_uri"] is None
+                         and json.loads(row["body"]) != body)
             if not revisable:
                 return row["id"], "duplicate"
             stamp = self.hlc.now()
@@ -223,6 +234,12 @@ class Store:
         connector — the write is refused rather than silently winning. Omit
         it and the old last-writer-wins behaviour applies, which is what
         every existing client still does.
+
+        Editing a `proposal` keeps it: the state moves to `kept` in the same
+        UPDATE as the body, so a later run of the connector that proposed it
+        finds a kept record and leaves the edit alone (LOOM §7 — only a
+        person keeps a proposal, and editing it is standing behind it). The
+        change row is the one `update`; releasing a proposal is still DELETE.
         """
         cur = self.conn.execute(
             "SELECT body, revision, hlc FROM records WHERE id=?", (rid,))
@@ -237,7 +254,9 @@ class Store:
         stamp = self.hlc.now()
         with self.conn:
             self.conn.execute(
-                "UPDATE records SET body=?, revision=revision+1, hlc=? WHERE id=?",
+                "UPDATE records SET body=?, revision=revision+1, hlc=?,"
+                " state=CASE WHEN state='proposal' THEN 'kept' ELSE state END"
+                " WHERE id=?",
                 (payload, stamp, rid))
             self._log(rid, "update", payload, stamp, device, actor)
         return self.get(rid)
