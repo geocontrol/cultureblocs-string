@@ -282,7 +282,7 @@ function render(){
     }
   });
   $('#out').className='';
-  const hasMachine=items.some(isMachine);
+  const hasMachine=items.some(isProposal);
   $('#out').innerHTML=`<div class="string${hasMachine?' has-machine':''}">${html}</div>`;
 }
 
