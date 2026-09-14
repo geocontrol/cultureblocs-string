@@ -47,10 +47,17 @@ It is an allowlist at every depth: a field it does not name does not
 publish. Geo coordinates, all provenance (devices, mintIds, apps) and
 local media refs never leave; a work's local `image` never leaves. Place
 names, notes, tags, links, kinds and times survive, as do refs — minus
-resolver bookkeeping, and minus any person ref — or ref of any type other
-than work, event, venue or concept — that has neither a DID nor an external
-identifier, because a bare name may be a private individual. A `did` that
-is not a well-formed DID counts as no DID.
+resolver bookkeeping, and with three rules for people, because a bare name
+may be a private individual (LOOM.md §9.8):
+
+- a person ref — or a ref of any type other than work, event, venue or
+  concept — publishes only with a DID or a **public-authority** id
+  (wikidata, viaf, isni, orcid, musicbrainz, discogs, ipi); its ids from
+  any other scheme (an email, a handle) never publish;
+- a work's `creator` name publishes only when the work or its maker is
+  identified (a `creatorDid`, the work's own DID, or an external id), so
+  "a painting by J" keeps J local;
+- a `did` or `creatorDid` that is not a well-formed DID counts as absent.
 The note text publishes exactly as written: selecting a strand is the act
 of consent.
 
