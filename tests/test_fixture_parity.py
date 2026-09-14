@@ -1,8 +1,8 @@
 """The shared fixture suites, run against the Python implementations.
 
 tests/fixtures/*.json are the contract between string/app/lexicon.py and
-sdk/js/lexicon.js, and between string/app/publisher.py's strip functions and
-sdk/js/strip.js. Both languages run these same cases: see
+sdk/js/lexicon.js, between string/app/publisher.py's strip functions and
+sdk/js/strip.js, and between string/app/refs.py and sdk/js/refs.js. Both languages run these same cases: see
 sdk/js/test/*.test.mjs for the other half.
 
 If you change a validator or a strip rule, change the fixture — and both
@@ -17,7 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "string"))
 from app.lexicon import LexiconRegistry  # noqa: E402
-from app import publisher  # noqa: E402
+from app import publisher, refs  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
 
@@ -28,6 +28,7 @@ def load(name: str) -> list[dict]:
 
 LEXICON_CASES = load("lexicon-cases.json")
 STRIP_CASES = load("strip-cases.json")
+REFS_CASES = load("refs-cases.json")
 
 
 @pytest.fixture(scope="module")
@@ -53,6 +54,11 @@ def test_strip_fixture(case):
     else:
         raise AssertionError(f"unknown strip fn: {case['fn']}")
     assert got == case["expected"]
+
+
+@pytest.mark.parametrize("case", REFS_CASES, ids=lambda c: c["name"][:60])
+def test_refs_fixture(case):
+    assert getattr(refs, case["fn"])(*case["args"]) == case["expected"]
 
 
 def test_strip_never_emits_a_private_key():

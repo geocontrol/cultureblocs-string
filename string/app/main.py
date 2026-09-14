@@ -34,7 +34,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import publisher
+from . import publisher, refs
 from .db import STATES, Store
 from .lexicon import LexiconRegistry
 
@@ -107,13 +107,15 @@ def ingest(batch: BatchIn, org: Origin = Depends(origin)):
             results.append({"dedupeKey": rec.dedupeKey, "status": "invalid",
                             "problems": [f"unknown state: {rec.state}"]})
             continue
-        problems = registry.validate_record(rec.type, rec.body)
+        body = refs.mirror_annotation_work(rec.type, rec.body)
+        problems = (registry.validate_record(rec.type, body)
+                    + refs.anchor_problems(rec.type, body))
         if problems:
             results.append({"dedupeKey": rec.dedupeKey, "status": "invalid",
                             "problems": problems})
             continue
         rid, status = store.upsert(
-            rec.dedupeKey, rec.type, rec.sourceApp, rec.createdAt, rec.body,
+            rec.dedupeKey, rec.type, rec.sourceApp, rec.createdAt, body,
             state=rec.state, device=org.device, actor=org.actor)
         results.append({"dedupeKey": rec.dedupeKey, "status": status, "id": rid})
     return {"results": results}
@@ -149,12 +151,15 @@ def patch(rid: str, body: PatchIn, request: Request,
     current = store.get(rid)
     if current is None:
         raise HTTPException(status_code=404, detail="not found")
-    merged = {**current["body"], **body.fields}
-    problems = registry.validate_record(current["type"], merged)
+    requested = {**current["body"], **body.fields}
+    merged = refs.mirror_annotation_work(current["type"], requested)
+    problems = (registry.validate_record(current["type"], merged)
+                + refs.anchor_problems(current["type"], merged))
     if problems:
         raise HTTPException(status_code=422, detail=problems)
+    fields = body.fields if merged is requested else {**body.fields, "refs": merged["refs"]}
     expect = (request.headers.get("if-match") or "").strip('"') or None
-    result = store.patch(rid, body.fields, expect_hlc=expect,
+    result = store.patch(rid, fields, expect_hlc=expect,
                          device=org.device, actor=org.actor)
     if result is store.STALE:
         raise HTTPException(status_code=412, detail={

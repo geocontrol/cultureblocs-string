@@ -2,25 +2,10 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "string"))
 
 BEAD = "com.cultureblocs.bead"
-
-
-@pytest.fixture
-def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRING_DB", str(tmp_path / "string.db"))
-    monkeypatch.setenv("STRING_LEXICONS", str(ROOT / "lexicons"))
-    monkeypatch.delenv("STRING_TOKEN", raising=False)
-    monkeypatch.delenv("SPINE_TOKEN", raising=False)
-    for mod in [m for m in sys.modules if m.startswith("app.")]:
-        del sys.modules[mod]
-    from fastapi.testclient import TestClient
-    import app.main as main
-    return TestClient(main.app)
 
 
 def bead(note="a note"):
