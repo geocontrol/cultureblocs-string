@@ -2,8 +2,8 @@
 
 Validates record bodies against the subset of the atproto Lexicon language
 used by the com.cultureblocs.* schemas: object, string (datetime/uri/did
-formats, maxGraphemes, knownValues advisory), number, integer, boolean,
-ref, union, array.
+formats, maxGraphemes, knownValues advisory), number, integer (minimum,
+maximum), boolean, ref, union, array.
 
 Deliberately small. When promotion to a real PDS lands, the PDS performs
 authoritative validation; this keeps Tier 0 data honest in the meantime.
@@ -15,9 +15,9 @@ import re
 from pathlib import Path
 
 DATETIME_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$"
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})", re.ASCII
 )
-DID_RE = re.compile(r"^did:[a-z0-9]+:.+$")
+DID_RE = re.compile(r"did:[a-z0-9]+:.+", re.ASCII)
 
 
 class LexiconError(ValueError):
@@ -133,10 +133,10 @@ class LexiconRegistry:
                 problems.append(f"{path}: expected string")
                 return False
             fmt = schema.get("format")
-            if fmt == "datetime" and not DATETIME_RE.match(value):
+            if fmt == "datetime" and not DATETIME_RE.fullmatch(value):
                 problems.append(f"{path}: not an ISO 8601 datetime: {value!r}")
                 return False
-            if fmt == "did" and not DID_RE.match(value):
+            if fmt == "did" and not DID_RE.fullmatch(value):
                 problems.append(f"{path}: not a DID: {value!r}")
                 return False
             maxg = schema.get("maxGraphemes")
@@ -149,6 +149,13 @@ class LexiconRegistry:
         if t == "integer":
             if not isinstance(value, int) or isinstance(value, bool):
                 problems.append(f"{path}: expected integer")
+                return False
+            lo, hi = schema.get("minimum"), schema.get("maximum")
+            if lo is not None and value < lo:
+                problems.append(f"{path}: below minimum {lo}")
+                return False
+            if hi is not None and value > hi:
+                problems.append(f"{path}: above maximum {hi}")
                 return False
             return True
 

@@ -342,5 +342,68 @@
     "problems": [
       "com.cultureblocs.defs is not a record lexicon"
     ]
+  },
+  {
+    "name": "a datetime with a trailing newline is not a datetime",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z\n",
+      "kind": "note"
+    },
+    "problems": [
+      "$.createdAt: not an ISO 8601 datetime: '2026-08-15T10:00:00Z\\n'"
+    ]
+  },
+  {
+    "name": "a datetime written in non-ASCII digits is not a datetime",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "٢٠٢٦-08-15T10:00:00Z",
+      "kind": "note"
+    },
+    "problems": [
+      "$.createdAt: not an ISO 8601 datetime: '٢٠٢٦-08-15T10:00:00Z'"
+    ]
+  },
+  {
+    "name": "a value holding an apostrophe is quoted the way Python quotes it",
+    "nsid": "com.cultureblocs.creative.work",
+    "body": {
+      "$type": "com.cultureblocs.creative.work",
+      "title": "Gasholder",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "credits": [
+        {
+          "name": "J",
+          "did": "J's"
+        }
+      ]
+    },
+    "problems": [
+      "$.credits[0].did: not a DID: \"J's\""
+    ]
+  },
+  {
+    "name": "integers respect minimum",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "note",
+      "images": [
+        {
+          "image": {},
+          "aspectRatio": {
+            "width": 0,
+            "height": 10
+          }
+        }
+      ]
+    },
+    "problems": [
+      "$.images[0].aspectRatio.width: below minimum 1"
+    ]
   }
 ]

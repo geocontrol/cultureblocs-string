@@ -151,6 +151,12 @@ export class LexiconRegistry {
       if (typeof value !== 'number' || !Number.isInteger(value)) {
         problems.push(`${path}: expected integer`); return false;
       }
+      if (schema.minimum !== undefined && value < schema.minimum) {
+        problems.push(`${path}: below minimum ${schema.minimum}`); return false;
+      }
+      if (schema.maximum !== undefined && value > schema.maximum) {
+        problems.push(`${path}: above maximum ${schema.maximum}`); return false;
+      }
       return true;
     }
 
@@ -186,9 +192,18 @@ function isPlainObject(v) {
 
 /* Python renders values in problem messages with repr(); the parity fixtures
  * compare messages verbatim, so reproduce repr() for the shapes that reach a
- * message: strings (single-quoted) and the list of union refs. */
+ * message: strings and the list of union refs. Like Python, a string holding
+ * a single quote and no double quote is wrapped in double quotes, and control
+ * characters are escaped. */
+const REPR_ESCAPES = { '\\': '\\\\', '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+
 function repr(v) {
-  if (typeof v === 'string') return `'${v.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+  if (typeof v === 'string') {
+    const q = v.includes("'") && !v.includes('"') ? '"' : "'";
+    const body = v.replace(/[\\\x00-\x1f\x7f]/g, (c) => REPR_ESCAPES[c]
+      ?? `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`);
+    return q + (q === "'" ? body.replace(/'/g, "\\'") : body) + q;
+  }
   if (Array.isArray(v)) return `[${v.map(repr).join(', ')}]`;
   if (v === undefined || v === null) return 'None';
   return String(v);
