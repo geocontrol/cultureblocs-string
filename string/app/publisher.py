@@ -123,12 +123,30 @@ PUBLIC_TYPES = ("com.cultureblocs.creative.profile", "com.cultureblocs.creative.
 
 SELF_KEYED = ("com.cultureblocs.creative.profile", "com.cultureblocs.venue.profile")
 
+SEED_TAG = "seed:artworld"
+
+
+def _refuse_if_seeded(rec: dict) -> None:
+    """Seeded fair data describes third parties who have not said it.
+
+    It is held locally on purpose (see rounds/README.md). Publishing it would
+    assert that a named gallery is exhibiting at a named fair on their behalf.
+    The record carries both a sourceApp and a tag saying what it is; honour them.
+    """
+    body = rec.get("body") or {}
+    tags = body.get("tags") or []
+    if str(rec.get("sourceApp") or "").startswith("seed-") or SEED_TAG in tags:
+        raise ValueError(
+            "refusing to publish seeded data: this record describes a third "
+            "party who has not made the claim. See rounds/README.md.")
+
 
 def publish_record(store, record_id: str, identity: dict) -> dict:
     """Publish a single non-strand record under a held identity."""
     rec = store.get(record_id)
     if rec is None:
         raise ValueError("not found")
+    _refuse_if_seeded(rec)
     if rec["type"] not in PUBLIC_TYPES:
         raise ValueError(f"{rec['type']} is not publishable on its own; "
                          "beads and annotations publish as part of a strand")
@@ -170,6 +188,7 @@ def publish_strand(store, strand_id: str, identity: dict,
         rec = store.get(rid)
         if rec is None or rec["type"] not in BEAD_TYPES:
             continue
+        _refuse_if_seeded(rec)
         images = _image_refs(rec["body"], media_dir, pds, jwt)
         stripped = strip_bead(rec["body"], images=images)
         res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
