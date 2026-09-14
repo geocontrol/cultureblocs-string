@@ -18,11 +18,18 @@ device that hears about a later write stop issuing stamps beneath it.
 
 Phase 0 only stamps writes. Applying remote ops (observe()) is what Phase 2
 needs it for; it is here now so the stamps written today are usable then.
+
+Thread safety: now() and observe() each read and advance (millis, counter),
+so two unserialised calls can hand out the same stamp. Each HLC therefore
+holds its own lock and both methods run under it — callers (the Store's
+threadpool-shared connection among them) need no lock of their own to get
+unique, increasing stamps.
 """
 from __future__ import annotations
 
 import os
 import socket
+import threading
 import time
 import uuid
 
@@ -70,6 +77,7 @@ class HLC:
         self._clock = clock or (lambda: int(time.time() * 1000))
         self._millis = 0
         self._counter = 0
+        self._lock = threading.Lock()
 
     def _stamp(self) -> str:
         # A counter that has run out of digits would break the fixed-width
@@ -83,27 +91,29 @@ class HLC:
 
     def now(self) -> str:
         """Stamp a local write."""
-        phys = self._clock()
-        if phys > self._millis:
-            self._millis, self._counter = phys, 0
-        else:
-            self._counter += 1          # clock stalled or went backwards
-        return self._stamp()
+        with self._lock:
+            phys = self._clock()
+            if phys > self._millis:
+                self._millis, self._counter = phys, 0
+            else:
+                self._counter += 1      # clock stalled or went backwards
+            return self._stamp()
 
     def observe(self, remote: str | None) -> str:
         """Stamp a write caused by a remote one, strictly after both."""
         if not is_valid(remote):
             return self.now()
         r_millis, r_counter, _ = parse(remote)
-        phys = self._clock()
-        millis = max(phys, self._millis, r_millis)
-        if millis == self._millis and millis == r_millis:
-            counter = max(self._counter, r_counter) + 1
-        elif millis == self._millis:
-            counter = self._counter + 1
-        elif millis == r_millis:
-            counter = r_counter + 1
-        else:
-            counter = 0                 # physical clock moved us past both
-        self._millis, self._counter = millis, counter
-        return self._stamp()
+        with self._lock:
+            phys = self._clock()
+            millis = max(phys, self._millis, r_millis)
+            if millis == self._millis and millis == r_millis:
+                counter = max(self._counter, r_counter) + 1
+            elif millis == self._millis:
+                counter = self._counter + 1
+            elif millis == r_millis:
+                counter = r_counter + 1
+            else:
+                counter = 0             # physical clock moved us past both
+            self._millis, self._counter = millis, counter
+            return self._stamp()

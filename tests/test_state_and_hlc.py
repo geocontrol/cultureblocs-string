@@ -8,6 +8,7 @@ beads in it.
 import json
 import sqlite3
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -109,6 +110,67 @@ def test_without_if_match_the_old_last_writer_wins_behaviour_is_unchanged(store)
     store.patch(rid, {"note": "one"})
     store.patch(rid, {"note": "two"})
     assert store.get(rid)["body"]["note"] == "two"
+
+
+def test_if_match_is_atomic_under_concurrent_writers(store):
+    """FastAPI runs sync routes on a threadpool over one shared connection.
+    Every writer holding the same If-Match must see exactly one winner per
+    round, and no two writes may share a stamp."""
+    threads, rounds = 8, 25
+    rid, _ = store.upsert("k1", BEAD, "mint", "2026-08-15T21:04:00Z", body())
+    errors: list[BaseException] = []
+
+    for r in range(rounds):
+        expect = store.get(rid)["hlc"]
+        barrier = threading.Barrier(threads)
+        outcomes: list[object] = []
+
+        def edit(n: int) -> None:
+            try:
+                barrier.wait()
+                outcomes.append(store.patch(rid, {"note": f"round {r} writer {n}"},
+                                            expect_hlc=expect))
+            except BaseException as exc:          # surfaced below, not swallowed
+                errors.append(exc)
+
+        workers = [threading.Thread(target=edit, args=(n,)) for n in range(threads)]
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join()
+        assert not errors, errors
+        wins = [o for o in outcomes if o is not Store.STALE]
+        assert len(wins) == 1, f"round {r}: {len(wins)} writers won against one If-Match"
+        assert len(outcomes) - len(wins) == threads - 1
+
+    stamps = [c["hlc"] for c in store.changes_since(0, limit=10_000)]
+    assert len(stamps) == rounds + 1
+    assert len(set(stamps)) == len(stamps)
+
+
+def test_stamps_never_go_backwards_across_a_restart(tmp_path, monkeypatch):
+    """The clock is seeded from the highest stamp on disk, so a host whose
+    wall clock is behind the last write it made still stamps after it."""
+    import app.hlc as hlc_module
+
+    class Clock:
+        def __init__(self, seconds: float):
+            self.seconds = seconds
+
+        def time(self) -> float:
+            return self.seconds
+
+    path = str(tmp_path / "string.db")
+    monkeypatch.setattr(hlc_module, "time", Clock(1_800_000_000.0))
+    first_store = Store(path, node_id="testnode")
+    rid, _ = first_store.upsert("k1", BEAD, "mint", "2026-08-15T21:04:00Z", body())
+    first = first_store.get(rid)["hlc"]
+    first_store.conn.close()
+
+    monkeypatch.setattr(hlc_module, "time", Clock(1_700_000_000.0))   # three years behind
+    reopened = Store(path, node_id="testnode")
+    second = reopened.patch(rid, {"note": "after the restart"})["hlc"]
+    assert second > first
 
 
 # -- the change feed -----------------------------------------------------

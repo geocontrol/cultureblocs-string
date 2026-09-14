@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -110,17 +111,50 @@ def now_iso() -> str:
 
 
 class Store:
+    """The record store.
+
+    Concurrency: one sqlite3 connection is shared by every request thread
+    (FastAPI runs sync routes on a threadpool), and several methods read a
+    row and then write on the strength of what they read. Every method that
+    touches the connection — reads included, since the connection itself
+    is not safe to use from two threads at once — runs under `self._lock`,
+    one re-entrant lock per Store, so patch() can call get() inside it. The
+    HLC serialises its own now()/observe() (see hlc.py); stamps are unique
+    whether or not they are taken under this lock.
+    """
+
     def __init__(self, path: str, *, node_id: str | None = None):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(path, check_same_thread=False)
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA foreign_keys=ON")
-        self.conn.executescript(SCHEMA)
-        self.conn.row_factory = sqlite3.Row
-        self.hlc = HLC(node_id)
-        self._migrate()
-        self.conn.executescript(POST_MIGRATION_SCHEMA)
-        self._backfill_state()
+        self._lock = threading.RLock()
+        with self._lock:
+            self.conn = sqlite3.connect(path, check_same_thread=False)
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA foreign_keys=ON")
+            self.conn.executescript(SCHEMA)
+            self.conn.row_factory = sqlite3.Row
+            self.hlc = HLC(node_id)
+            self._migrate()
+            self.conn.executescript(POST_MIGRATION_SCHEMA)
+            self._backfill_state()
+            self._seed_clock()
+
+    def _seed_clock(self) -> None:
+        """Start the clock above the highest stamp already on disk.
+
+        The HLC lives in memory, so without this a restart on a host whose
+        wall clock is behind its last write (NTP correction, a dead RTC
+        battery) would issue stamps that sort beneath writes it already
+        made. Stamps are fixed-width, so MAX() over the text is the causal
+        maximum; rows that do not start with a digit cannot be stamps and
+        are ignored.
+        """
+        top = self.conn.execute(
+            "SELECT MAX(h) FROM ("
+            " SELECT MAX(hlc) AS h FROM records WHERE hlc GLOB '[0-9]*'"
+            " UNION ALL"
+            " SELECT MAX(hlc) FROM changes WHERE hlc GLOB '[0-9]*')").fetchone()[0]
+        if top is not None:
+            self.hlc.observe(top)
 
     # -- migration -------------------------------------------------------
     def _migrate(self) -> None:
@@ -190,35 +224,36 @@ class Store:
         Returns status 'created', 'updated' (a proposal revised) or
         'duplicate' (left alone).
         """
-        cur = self.conn.execute(
-            "SELECT id, state, published_uri, body FROM records WHERE dedupe_key = ?",
-            (dedupe_key,))
-        row = cur.fetchone()
-        payload = json.dumps(body, separators=(",", ":"))
-        if row:
-            revisable = (row["state"] == "proposal" and state == "proposal"
-                         and row["published_uri"] is None
-                         and json.loads(row["body"]) != body)
-            if not revisable:
-                return row["id"], "duplicate"
+        with self._lock:
+            cur = self.conn.execute(
+                "SELECT id, state, published_uri, body FROM records WHERE dedupe_key = ?",
+                (dedupe_key,))
+            row = cur.fetchone()
+            payload = json.dumps(body, separators=(",", ":"))
+            if row:
+                revisable = (row["state"] == "proposal" and state == "proposal"
+                             and row["published_uri"] is None
+                             and json.loads(row["body"]) != body)
+                if not revisable:
+                    return row["id"], "duplicate"
+                stamp = self.hlc.now()
+                with self.conn:
+                    self.conn.execute(
+                        "UPDATE records SET body=?, revision=revision+1, hlc=? WHERE id=?",
+                        (payload, stamp, row["id"]))
+                    self._log(row["id"], "update", payload, stamp, device, actor)
+                return row["id"], "updated"
+            rid = str(uuid.uuid4())
             stamp = self.hlc.now()
             with self.conn:
                 self.conn.execute(
-                    "UPDATE records SET body=?, revision=revision+1, hlc=? WHERE id=?",
-                    (payload, stamp, row["id"]))
-                self._log(row["id"], "update", payload, stamp, device, actor)
-            return row["id"], "updated"
-        rid = str(uuid.uuid4())
-        stamp = self.hlc.now()
-        with self.conn:
-            self.conn.execute(
-                "INSERT INTO records (id, dedupe_key, type, tier, source_app,"
-                " created_at, ingested_at, state, hlc, body)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (rid, dedupe_key, rtype, tier, source_app,
-                 created_at, now_iso(), state, stamp, payload))
-            self._log(rid, "create", payload, stamp, device, actor)
-        return rid, "created"
+                    "INSERT INTO records (id, dedupe_key, type, tier, source_app,"
+                    " created_at, ingested_at, state, hlc, body)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (rid, dedupe_key, rtype, tier, source_app,
+                     created_at, now_iso(), state, stamp, payload))
+                self._log(rid, "create", payload, stamp, device, actor)
+            return rid, "created"
 
     #: patch() returns this when an If-Match precondition does not hold. A
     #: bare None already means "no such record", and the caller has to tell
@@ -240,26 +275,35 @@ class Store:
         finds a kept record and leaves the edit alone (LOOM §7 — only a
         person keeps a proposal, and editing it is standing behind it). The
         change row is the one `update`; releasing a proposal is still DELETE.
+
+        The precondition is enforced by the UPDATE itself (`WHERE id=? AND
+        hlc matches`, then rowcount), not by comparing a value read earlier,
+        so it holds even if the read and the write were ever to come apart.
+        A legacy record with no stamp matches only an empty expectation, as
+        before.
         """
-        cur = self.conn.execute(
-            "SELECT body, revision, hlc FROM records WHERE id=?", (rid,))
-        row = cur.fetchone()
-        if row is None:
-            return None
-        if expect_hlc is not None and (row["hlc"] or "") != expect_hlc:
-            return self.STALE
-        body = json.loads(row["body"])
-        body.update(fields)
-        payload = json.dumps(body, separators=(",", ":"))
-        stamp = self.hlc.now()
-        with self.conn:
-            self.conn.execute(
-                "UPDATE records SET body=?, revision=revision+1, hlc=?,"
-                " state=CASE WHEN state='proposal' THEN 'kept' ELSE state END"
-                " WHERE id=?",
-                (payload, stamp, rid))
-            self._log(rid, "update", payload, stamp, device, actor)
-        return self.get(rid)
+        with self._lock:
+            cur = self.conn.execute(
+                "SELECT body, revision, hlc FROM records WHERE id=?", (rid,))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            body = json.loads(row["body"])
+            body.update(fields)
+            payload = json.dumps(body, separators=(",", ":"))
+            stamp = self.hlc.now()
+            sql = ("UPDATE records SET body=?, revision=revision+1, hlc=?,"
+                   " state=CASE WHEN state='proposal' THEN 'kept' ELSE state END"
+                   " WHERE id=?")
+            args: list = [payload, stamp, rid]
+            if expect_hlc is not None:
+                sql += " AND IFNULL(hlc, '') = ?"
+                args.append(expect_hlc)
+            with self.conn:
+                if self.conn.execute(sql, args).rowcount == 0:
+                    return self.STALE
+                self._log(rid, "update", payload, stamp, device, actor)
+            return self.get(rid)
 
     def set_state(self, rid: str, state: str, *, device: str | None = None,
                   actor: str | None = None) -> dict | None:
@@ -274,53 +318,57 @@ class Store:
         """
         if state not in STATES:
             raise ValueError(f"unknown state: {state!r}")
-        cur = self.conn.execute("SELECT body, state FROM records WHERE id=?", (rid,))
-        row = cur.fetchone()
-        if row is None:
-            return None
-        if row["state"] == state:
+        with self._lock:
+            cur = self.conn.execute("SELECT body, state FROM records WHERE id=?", (rid,))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            if row["state"] == state:
+                return self.get(rid)
+            stamp = self.hlc.now()
+            with self.conn:
+                self.conn.execute("UPDATE records SET state=?, hlc=? WHERE id=?",
+                                  (state, stamp, rid))
+                self._log(rid, "state", row["body"], stamp, device, actor)
             return self.get(rid)
-        stamp = self.hlc.now()
-        with self.conn:
-            self.conn.execute("UPDATE records SET state=?, hlc=? WHERE id=?",
-                              (state, stamp, rid))
-            self._log(rid, "state", row["body"], stamp, device, actor)
-        return self.get(rid)
 
     def delete(self, rid: str, *, device: str | None = None,
                actor: str | None = None) -> bool:
-        cur = self.conn.execute("SELECT body FROM records WHERE id=?", (rid,))
-        row = cur.fetchone()
-        if row is None:
-            return False
-        with self.conn:
-            self.conn.execute("DELETE FROM records WHERE id=?", (rid,))
-            self._log(rid, "delete", row["body"], self.hlc.now(), device, actor)
-        return True
+        with self._lock:
+            cur = self.conn.execute("SELECT body FROM records WHERE id=?", (rid,))
+            row = cur.fetchone()
+            if row is None:
+                return False
+            with self.conn:
+                self.conn.execute("DELETE FROM records WHERE id=?", (rid,))
+                self._log(rid, "delete", row["body"], self.hlc.now(), device, actor)
+            return True
 
     def set_published(self, rid: str, uri: str | None, phash: str | None, *,
                       device: str | None = None, actor: str | None = None) -> bool:
-        cur = self.conn.execute("SELECT body FROM records WHERE id=?", (rid,))
-        row = cur.fetchone()
-        if row is None:
-            return False
-        stamp = self.hlc.now()
-        with self.conn:
-            self.conn.execute(
-                "UPDATE records SET published_uri=?, published_hash=?, hlc=? WHERE id=?",
-                (uri, phash, stamp, rid))
-            # Logged so a second device learns that a record now has a public
-            # twin — without this the change feed cannot describe publication
-            # at all, and a syncing client would offer to publish it again.
-            self._log(rid, "publish" if uri else "unpublish",
-                      row["body"], stamp, device, actor)
-        return True
+        with self._lock:
+            cur = self.conn.execute("SELECT body FROM records WHERE id=?", (rid,))
+            row = cur.fetchone()
+            if row is None:
+                return False
+            stamp = self.hlc.now()
+            with self.conn:
+                self.conn.execute(
+                    "UPDATE records SET published_uri=?, published_hash=?, hlc=? WHERE id=?",
+                    (uri, phash, stamp, rid))
+                # Logged so a second device learns that a record now has a public
+                # twin — without this the change feed cannot describe publication
+                # at all, and a syncing client would offer to publish it again.
+                self._log(rid, "publish" if uri else "unpublish",
+                          row["body"], stamp, device, actor)
+            return True
 
     # -- reads -----------------------------------------------------------
     def get(self, rid: str) -> dict | None:
-        cur = self.conn.execute("SELECT * FROM records WHERE id=?", (rid,))
-        row = cur.fetchone()
-        return self._row(row) if row else None
+        with self._lock:
+            cur = self.conn.execute("SELECT * FROM records WHERE id=?", (rid,))
+            row = cur.fetchone()
+            return self._row(row) if row else None
 
     def query(self, day: str | None = None, rtype: str | None = None,
               source_app: str | None = None, state: str | None = None,
@@ -341,45 +389,52 @@ class Store:
             args.append(state)
         sql += " ORDER BY created_at ASC LIMIT ?"
         args.append(limit)
-        return [self._row(r) for r in self.conn.execute(sql, args)]
+        with self._lock:
+            return [self._row(r) for r in self.conn.execute(sql, args)]
 
     def changes_since(self, since: int, limit: int = 500) -> list[dict]:
-        cur = self.conn.execute(
-            "SELECT seq, record_id, op, at, hlc, device_id, actor, body FROM changes "
-            "WHERE seq>? ORDER BY seq ASC LIMIT ?", (since, limit))
-        return [{"seq": r["seq"], "recordId": r["record_id"], "op": r["op"],
-                 "at": r["at"], "hlc": r["hlc"], "deviceId": r["device_id"],
-                 "actor": r["actor"], "body": json.loads(r["body"])} for r in cur]
+        with self._lock:
+            cur = self.conn.execute(
+                "SELECT seq, record_id, op, at, hlc, device_id, actor, body FROM changes "
+                "WHERE seq>? ORDER BY seq ASC LIMIT ?", (since, limit))
+            return [{"seq": r["seq"], "recordId": r["record_id"], "op": r["op"],
+                     "at": r["at"], "hlc": r["hlc"], "deviceId": r["device_id"],
+                     "actor": r["actor"], "body": json.loads(r["body"])} for r in cur]
 
     def days(self) -> list[dict]:
-        cur = self.conn.execute(
-            "SELECT substr(created_at,1,10) AS day, COUNT(*) AS n "
-            "FROM records GROUP BY day ORDER BY day DESC")
-        return [{"day": r["day"], "count": r["n"]} for r in cur]
+        with self._lock:
+            cur = self.conn.execute(
+                "SELECT substr(created_at,1,10) AS day, COUNT(*) AS n "
+                "FROM records GROUP BY day ORDER BY day DESC")
+            return [{"day": r["day"], "count": r["n"]} for r in cur]
 
     # -- identities ------------------------------------------------------
     def identity_put(self, name: str, handle: str, app_password: str, pds: str) -> None:
-        with self.conn:
-            self.conn.execute(
-                "INSERT INTO identities (name, handle, app_password, pds) VALUES (?,?,?,?) "
-                "ON CONFLICT(name) DO UPDATE SET handle=excluded.handle, "
-                "app_password=excluded.app_password, pds=excluded.pds",
-                (name, handle, app_password, pds))
+        with self._lock:
+            with self.conn:
+                self.conn.execute(
+                    "INSERT INTO identities (name, handle, app_password, pds) VALUES (?,?,?,?) "
+                    "ON CONFLICT(name) DO UPDATE SET handle=excluded.handle, "
+                    "app_password=excluded.app_password, pds=excluded.pds",
+                    (name, handle, app_password, pds))
 
     def identity_get(self, name: str) -> dict | None:
-        cur = self.conn.execute(
-            "SELECT name, handle, app_password, pds FROM identities WHERE name=?", (name,))
-        row = cur.fetchone()
-        return dict(row) if row else None
+        with self._lock:
+            cur = self.conn.execute(
+                "SELECT name, handle, app_password, pds FROM identities WHERE name=?", (name,))
+            row = cur.fetchone()
+            return dict(row) if row else None
 
     def identities(self) -> list[dict]:
-        cur = self.conn.execute("SELECT name, handle, pds FROM identities ORDER BY name")
-        return [dict(r) for r in cur]      # never returns app_password
+        with self._lock:
+            cur = self.conn.execute("SELECT name, handle, pds FROM identities ORDER BY name")
+            return [dict(r) for r in cur]      # never returns app_password
 
     def identity_delete(self, name: str) -> bool:
-        with self.conn:
-            cur = self.conn.execute("DELETE FROM identities WHERE name=?", (name,))
-        return cur.rowcount > 0
+        with self._lock:
+            with self.conn:
+                cur = self.conn.execute("DELETE FROM identities WHERE name=?", (name,))
+            return cur.rowcount > 0
 
     @staticmethod
     def _row(row: sqlite3.Row) -> dict:
