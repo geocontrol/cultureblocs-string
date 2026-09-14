@@ -9,6 +9,7 @@ services:
       STRING_DB: /data/string.db
       STRING_LEXICONS: /lexicons
       STRING_MEDIA: /data/media
+      STRING_DEVICE_ID: culturebrick
       # STRING_TOKEN: change-me        # uncomment to require auth
     restart: unless-stopped
 
