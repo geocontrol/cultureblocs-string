@@ -171,7 +171,7 @@
       "subject": "Tate Modern"
     },
     "problems": [
-      "$.subject: does not match any union variant ['com.cultureblocs.defs#workRef', 'com.cultureblocs.defs#placeRef', 'com.cultureblocs.defs#strongRef']"
+      "$.subject: does not match any union variant ['com.cultureblocs.defs#placeRef', 'com.cultureblocs.defs#strongRef']"
     ]
   },
   {
@@ -313,7 +313,7 @@
     ]
   },
   {
-    "name": "any object satisfies the subject union: workRef and placeRef declare no required fields, so the first variant tried matches. Pinned because it is surprising, not because it is desirable — a bead can carry a subject that means nothing and still validate.",
+    "name": "any object satisfies the subject union: placeRef declares no required fields, so it matches. Pinned because it is surprising, not because it is desirable — a bead can carry a subject that means nothing and still validate.",
     "nsid": "com.cultureblocs.bead",
     "body": {
       "$type": "com.cultureblocs.bead",
@@ -405,5 +405,152 @@
     "problems": [
       "$.images[0].aspectRatio.width: below minimum 1"
     ]
+  },
+  {
+    "name": "a placeRef with a malformed DID no longer passes as a workRef",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "visit",
+      "subject": {
+        "did": "plc:abc",
+        "name": "Tate"
+      }
+    },
+    "problems": [
+      "$.subject: does not match any union variant ['com.cultureblocs.defs#placeRef', 'com.cultureblocs.defs#strongRef']"
+    ]
+  },
+  {
+    "name": "a bead with refs and a presentation validates; unknown id schemes are carried",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "read",
+      "note": "Pester, again.",
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "label": "The Expansion Project",
+            "creator": "Ben Pester"
+          },
+          "externalIds": [
+            {
+              "scheme": "wikidata",
+              "id": "Q000000"
+            },
+            {
+              "scheme": "somethingNew",
+              "id": "x"
+            }
+          ],
+          "index": {
+            "byteStart": 0,
+            "byteEnd": 6
+          }
+        }
+      ],
+      "presentation": {
+        "format": "hardback",
+        "venueRef": {
+          "type": "venue",
+          "role": "mention",
+          "descriptor": {
+            "label": "Review Bookshop"
+          }
+        }
+      }
+    },
+    "problems": []
+  },
+  {
+    "name": "a ref needs a descriptor",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "watch",
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject"
+        }
+      ]
+    },
+    "problems": [
+      "$.refs[0].descriptor: required field missing"
+    ]
+  },
+  {
+    "name": "a descriptor needs a label",
+    "nsid": "com.cultureblocs.bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "kind": "watch",
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "creator": "Priest"
+          }
+        }
+      ]
+    },
+    "problems": [
+      "$.refs[0].descriptor.label: required field missing"
+    ]
+  },
+  {
+    "name": "a ref anchor cannot start before the text",
+    "nsid": "com.cultureblocs.strand",
+    "body": {
+      "$type": "com.cultureblocs.strand",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "items": [],
+      "narrative": "Ballard",
+      "refs": [
+        {
+          "type": "person",
+          "role": "mention",
+          "descriptor": {
+            "label": "J. G. Ballard"
+          },
+          "index": {
+            "byteStart": -1,
+            "byteEnd": 7
+          }
+        }
+      ]
+    },
+    "problems": [
+      "$.refs[0].index.byteStart: below minimum 0"
+    ]
+  },
+  {
+    "name": "an annotation carries refs beside its work",
+    "nsid": "com.cultureblocs.annotation",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "work": {
+        "title": "Gasholder"
+      },
+      "refs": [
+        {
+          "type": "work",
+          "role": "subject",
+          "descriptor": {
+            "label": "Gasholder"
+          }
+        }
+      ]
+    },
+    "problems": []
   }
 ]

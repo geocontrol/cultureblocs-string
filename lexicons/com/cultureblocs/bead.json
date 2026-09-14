@@ -36,15 +36,24 @@
           "subject": {
             "type": "union",
             "refs": [
-              "com.cultureblocs.defs#workRef",
               "com.cultureblocs.defs#placeRef",
               "com.cultureblocs.defs#strongRef"
             ],
-            "description": "What the bead is about: a work, a place, or a published record (event, exhibition)."
+            "description": "Where the bead happened, or the published record (event, exhibition) it belongs to. Works, people and concepts go in `refs`."
           },
           "note": {
             "type": "string",
             "maxGraphemes": 3000
+          },
+          "refs": {
+            "type": "array",
+            "maxLength": 50,
+            "items": { "type": "ref", "ref": "com.cultureblocs.defs#ref" },
+            "description": "What this record is about (role subject) and what it reaches for (role mention). Anchors index into `note`."
+          },
+          "presentation": {
+            "type": "ref",
+            "ref": "com.cultureblocs.defs#presentation"
           },
           "tags": {
             "type": "array",
