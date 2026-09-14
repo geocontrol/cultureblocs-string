@@ -169,7 +169,8 @@ class Store:
         """Give rows written before `state` existed the state they were being
         treated as. Every record was 'kept' except the machine proposals the
         timeline was picking out by producing-app name — those become
-        'proposal', so the dotted rail looks exactly as it did yesterday.
+        'proposal', unless already published: a published scrobbler bead
+        becomes 'kept', so it moves from the dotted rail to the solid one.
 
         Runs exactly once, marked by PRAGMA user_version. It must not be
         guarded on "are there any proposals yet", because keeping the last

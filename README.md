@@ -179,8 +179,10 @@ to be able to tell its own writes apart from everyone else's.
 rather than guessed by each client from the producing app's name. A
 proposal is a machine's suggestion and may be revised until a person
 keeps it; everything else is a mint fact and is insert-once. Records
-written before this column existed were backfilled once, on first start,
-so the dotted rail looks exactly as it did before.
+written before this column existed were backfilled once, on first start:
+unpublished scrobbler beads became proposals and stay on the dotted rail,
+while scrobbler beads that were already published became kept, so they
+move from the dotted rail to the solid one.
 
 ## Tests
 
