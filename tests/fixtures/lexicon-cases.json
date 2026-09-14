@@ -552,5 +552,43 @@
       ]
     },
     "problems": []
+  },
+  {
+    "name": "a DID with a carriage return in it is not a DID (Python's . matched it, JS's did not)",
+    "nsid": "com.cultureblocs.creative.work",
+    "body": {
+      "$type": "com.cultureblocs.creative.work",
+      "title": "Gasholder",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "credits": [
+        {
+          "name": "J",
+          "did": "did:plc:abc\rdef"
+        }
+      ]
+    },
+    "problems": [
+      "$.credits[0].did: not a DID: 'did:plc:abc\\rdef'"
+    ]
+  },
+  {
+    "name": "DIDs with dots, colons, percent-escapes and hyphens still validate",
+    "nsid": "com.cultureblocs.creative.work",
+    "body": {
+      "$type": "com.cultureblocs.creative.work",
+      "title": "Gasholder",
+      "createdAt": "2026-08-15T10:00:00Z",
+      "credits": [
+        {
+          "name": "J",
+          "did": "did:web:studio-j.example.com%3A8080:people"
+        },
+        {
+          "name": "K",
+          "did": "did:plc:ewvi7nxzyoun6zhxrhs64oiz"
+        }
+      ]
+    },
+    "problems": []
   }
 ]

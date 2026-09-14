@@ -13,7 +13,9 @@
  */
 
 const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/;
-const DID_RE = /^did:[a-z0-9]+:.+$/;
+// ATProto DID syntax; the same pattern as string/app/lexicon.py DID_RE and
+// both strips. An explicit class, not `.+`, whose meaning differs by language.
+const DID_RE = /^did:[a-z0-9]+:[a-zA-Z0-9._:%-]+$/;
 
 /* Python's len() counts code points; JS's .length counts UTF-16 code units,
  * so "🎭".length is 2 where len("🎭") is 1. maxGraphemes is an approximation

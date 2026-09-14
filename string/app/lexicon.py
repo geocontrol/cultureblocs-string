@@ -17,7 +17,10 @@ from pathlib import Path
 DATETIME_RE = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})", re.ASCII
 )
-DID_RE = re.compile(r"did:[a-z0-9]+:.+", re.ASCII)
+# ATProto DID syntax. An explicit character class rather than `.+`: Python's
+# `.` matches \r and U+2028 where JS's does not, so the two validators (and
+# the two strips, which use the same pattern) disagreed. Always fullmatch.
+DID_RE = re.compile(r"did:[a-z0-9]+:[a-zA-Z0-9._:%-]+", re.ASCII)
 
 
 class LexiconError(ValueError):

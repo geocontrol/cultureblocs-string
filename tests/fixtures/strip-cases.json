@@ -868,5 +868,146 @@
       "day": "2026-09-14T00:00:00Z",
       "items": []
     }
+  },
+  {
+    "name": "person ref whose did is not a DID never publishes: a bare name with a made-up did is still a bare name",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "jane"
+    },
+    "expected": null
+  },
+  {
+    "name": "person ref whose did hides a line separator never publishes (the DID pattern is ASCII-only in both languages)",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "did:plc:abc def"
+    },
+    "expected": null
+  },
+  {
+    "name": "person ref with a malformed did but a sound external id publishes without the did",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "jane",
+      "externalIds": [
+        {
+          "scheme": "orcid",
+          "id": "0000-0002-1825-0097"
+        }
+      ]
+    },
+    "expected": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "externalIds": [
+        {
+          "scheme": "orcid",
+          "id": "0000-0002-1825-0097"
+        }
+      ]
+    }
+  },
+  {
+    "name": "person ref with a well-formed did:web publishes",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "did:web:jane-doe.example.com%3A8080"
+    },
+    "expected": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "did": "did:web:jane-doe.example.com%3A8080"
+    }
+  },
+  {
+    "name": "work ref whose descriptor.creatorDid is not a DID publishes without it",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Crash",
+        "creator": "J. G. Ballard",
+        "creatorDid": "jane"
+      }
+    },
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Crash",
+        "creator": "J. G. Ballard"
+      }
+    }
+  },
+  {
+    "name": "work ref with a well-formed descriptor.creatorDid keeps it",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Crash",
+        "creatorDid": "did:plc:ballard"
+      }
+    },
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Crash",
+        "creatorDid": "did:plc:ballard"
+      }
+    }
+  },
+  {
+    "name": "annotation: a work.creatorDid that is not a DID does not publish",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "view",
+      "work": {
+        "title": "Crash",
+        "creator": "J. G. Ballard",
+        "creatorDid": "jane"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-08-15T21:04:00Z",
+      "kind": "view",
+      "work": {
+        "title": "Crash",
+        "creator": "J. G. Ballard"
+      }
+    }
   }
 ]

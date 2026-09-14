@@ -11,6 +11,8 @@ Ported to sdk/js/strip.js; both run tests/fixtures/strip-cases.json.
 """
 from __future__ import annotations
 
+from .lexicon import DID_RE
+
 ANNOTATION = "com.cultureblocs.annotation"
 ROLES = ("subject", "mention")
 NON_PERSON_TYPES = ("work", "event", "venue", "concept")
@@ -26,8 +28,21 @@ def _int(v) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
 
 
+def _did(v) -> bool:
+    """A DID in ATProto syntax. Anything else in a DID field is treated as
+    absent: a made-up `did` must not vouch for a bare name."""
+    return isinstance(v, str) and DID_RE.fullmatch(v) is not None
+
+
 def _pick(d: dict, keys: tuple[str, ...]) -> dict:
     return {k: d[k] for k in keys if _str(d.get(k))}
+
+
+def _drop_bad_creator_did(out: dict) -> dict:
+    """Drop a creatorDid that `_pick` kept but that is not a DID."""
+    if "creatorDid" in out and not _did(out["creatorDid"]):
+        del out["creatorDid"]
+    return out
 
 
 def _head(body: dict) -> dict:
@@ -59,8 +74,11 @@ def strip_ref(ref, anchored: bool = True) -> dict | None:
             (presentation.venueRef / eventRef); their index is dropped.
 
     Returns:
-        The stripped ref, or None when it lacks a type or label, or is a
-        person ref with neither a DID nor an external id.
+        The stripped ref, or None when it lacks a type or label, or when it
+        is a person ref — or a ref of any type other than work, event,
+        venue or concept — with neither a DID nor an external identifier.
+        A `did` or `descriptor.creatorDid` that does not match the DID
+        pattern is dropped, as if absent.
     """
     if not isinstance(ref, dict) or not _str(ref.get("type")):
         return None
@@ -70,9 +88,10 @@ def strip_ref(ref, anchored: bool = True) -> dict | None:
     out = {
         "type": ref["type"],
         "role": ref["role"] if ref.get("role") in ROLES else "mention",
-        "descriptor": _pick(descriptor, ("label", "creator", "creatorDid", "date")),
+        "descriptor": _drop_bad_creator_did(
+            _pick(descriptor, ("label", "creator", "creatorDid", "date"))),
     }
-    if _str(ref.get("did")):
+    if _did(ref.get("did")):
         out["did"] = ref["did"]
     ids = strip_external_ids(ref.get("externalIds"))
     if ids:
@@ -106,7 +125,8 @@ def strip_work_ref(work) -> dict | None:
     """Deprecated #workRef on annotations: identifiers and descriptors, never `image`."""
     if not isinstance(work, dict):
         return None
-    out = _pick(work, ("title", "creator", "date", "wikidata", "linkedArt", "creatorDid"))
+    out = _drop_bad_creator_did(
+        _pick(work, ("title", "creator", "date", "wikidata", "linkedArt", "creatorDid")))
     accession = work.get("accession")
     if isinstance(accession, dict) and _str(accession.get("institution")) \
             and _str(accession.get("id")):

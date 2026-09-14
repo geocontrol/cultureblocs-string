@@ -10,8 +10,10 @@
  * any depth, so a new lexicon field stays private until someone decides
  * otherwise and adds a fixture saying so. Geo, provenance, device ids,
  * mintIds, local media refs and resolver bookkeeping never leave. A person
- * ref publishes only with a DID or an external identifier: a bare name may
- * be a private individual.
+ * ref — or a ref of any type other than work, event, venue or concept —
+ * publishes only with a DID or an external identifier: a bare name may be a
+ * private individual. A `did` or `creatorDid` that does not match the DID
+ * pattern counts as absent and does not publish.
  *
  * CANONICAL COPY. Apps carry copies; copy outward from here.
  */
@@ -27,13 +29,25 @@ const STRAND_KEEP = ['createdAt', 'title', 'narrative', 'day'];
  * String, which no stranger can resolve. */
 const LOCAL_ONLY = ['provenance', 'media'];
 
+/* ATProto DID syntax — the same pattern as sdk/js/lexicon.js and
+ * string/app/lexicon.py DID_RE. Kept here, not imported, because apps copy
+ * this file on its own. */
+const DID_RE = /^did:[a-z0-9]+:[a-zA-Z0-9._:%-]+$/;
+
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v) => typeof v === 'string' && v !== '';
 const list = (v) => (Array.isArray(v) ? v : []);
+const did = (v) => typeof v === 'string' && DID_RE.test(v);
 
 function pick(d, keys) {
   const out = {};
   for (const k of keys) if (str(d[k])) out[k] = d[k];
+  return out;
+}
+
+/* Drop a creatorDid that pick kept but that is not a DID. */
+function dropBadCreatorDid(out) {
+  if ('creatorDid' in out && !did(out.creatorDid)) delete out.creatorDid;
   return out;
 }
 
@@ -64,9 +78,9 @@ export function stripRef(ref, anchored = true) {
   const out = {
     type: ref.type,
     role: ROLES.includes(ref.role) ? ref.role : 'mention',
-    descriptor: pick(descriptor, ['label', 'creator', 'creatorDid', 'date']),
+    descriptor: dropBadCreatorDid(pick(descriptor, ['label', 'creator', 'creatorDid', 'date'])),
   };
-  if (str(ref.did)) out.did = ref.did;
+  if (did(ref.did)) out.did = ref.did;
   const ids = stripExternalIds(ref.externalIds);
   if (ids.length) out.externalIds = ids;
   if (!NON_PERSON_TYPES.includes(ref.type) && !('did' in out) && !ids.length) return null; // unknown types fail closed
@@ -92,7 +106,8 @@ export function stripPresentation(presentation) {
 /* Deprecated #workRef on annotations: identifiers and descriptors, never `image`. */
 export function stripWorkRef(work) {
   if (!isObject(work)) return null;
-  const out = pick(work, ['title', 'creator', 'date', 'wikidata', 'linkedArt', 'creatorDid']);
+  const out = dropBadCreatorDid(
+    pick(work, ['title', 'creator', 'date', 'wikidata', 'linkedArt', 'creatorDid']));
   const acc = work.accession;
   if (isObject(acc) && str(acc.institution) && str(acc.id)) out.accession = pick(acc, ['institution', 'id']);
   return out;
