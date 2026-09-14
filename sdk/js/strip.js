@@ -11,9 +11,11 @@
  * otherwise and adds a fixture saying so. Geo, provenance, device ids,
  * mintIds, local media refs and resolver bookkeeping never leave. A person
  * ref — or a ref of any type other than work, event, venue or concept —
- * publishes only with a DID or an external identifier: a bare name may be a
- * private individual. A `did` or `creatorDid` that does not match the DID
- * pattern counts as absent and does not publish.
+ * publishes only with a DID or a public-authority id (PERSON_AUTHORITIES),
+ * and its other ids never publish: a bare name may be a private individual.
+ * For the same reason a work's `creator` publishes only when the work or its
+ * maker is identified. A `did` or `creatorDid` that does not match the DID
+ * pattern counts as absent and does not publish. LOOM.md §9.8.
  *
  * CANONICAL COPY. Apps carry copies; copy outward from here.
  */
@@ -21,6 +23,11 @@
 const ANNOTATION = 'com.cultureblocs.annotation';
 const ROLES = ['subject', 'mention'];
 const NON_PERSON_TYPES = ['work', 'event', 'venue', 'concept'];
+/* Registries of people who are already public; the only ids that identify a
+ * person, or publish on one. */
+const PERSON_AUTHORITIES = ['wikidata', 'viaf', 'isni', 'orcid', 'musicbrainz', 'discogs', 'ipi'];
+/* What identifies a deprecated #workRef, making its creator's name public record. */
+const WORK_REF_IDS = ['creatorDid', 'wikidata', 'linkedArt', 'accession'];
 const BEAD_KEEP = ['createdAt', 'kind', 'note'];
 const STRAND_KEEP = ['createdAt', 'title', 'narrative', 'day'];
 
@@ -81,9 +88,13 @@ export function stripRef(ref, anchored = true) {
     descriptor: dropBadCreatorDid(pick(descriptor, ['label', 'creator', 'creatorDid', 'date'])),
   };
   if (did(ref.did)) out.did = ref.did;
-  const ids = stripExternalIds(ref.externalIds);
+  const personLike = !NON_PERSON_TYPES.includes(ref.type); // unknown types fail closed
+  let ids = stripExternalIds(ref.externalIds);
+  if (personLike) ids = ids.filter((e) => PERSON_AUTHORITIES.includes(e.scheme));
   if (ids.length) out.externalIds = ids;
-  if (!NON_PERSON_TYPES.includes(ref.type) && !('did' in out) && !ids.length) return null; // unknown types fail closed
+  if (personLike && !('did' in out) && !ids.length) return null; // a bare name may be a private individual
+  const identified = 'creatorDid' in out.descriptor || 'did' in out || ids.length > 0;
+  if (!identified) delete out.descriptor.creator; // so may a maker's bare name
   const index = ref.index;
   if (anchored && isObject(index) && Number.isInteger(index.byteStart) && Number.isInteger(index.byteEnd)) {
     out.index = { byteStart: index.byteStart, byteEnd: index.byteEnd };
@@ -103,13 +114,15 @@ export function stripPresentation(presentation) {
   return Object.keys(out).length ? out : null;
 }
 
-/* Deprecated #workRef on annotations: identifiers and descriptors, never `image`. */
+/* Deprecated #workRef on annotations: identifiers and descriptors, never `image`.
+ * Its `creator` publishes only when the work or its maker is identified. */
 export function stripWorkRef(work) {
   if (!isObject(work)) return null;
   const out = dropBadCreatorDid(
     pick(work, ['title', 'creator', 'date', 'wikidata', 'linkedArt', 'creatorDid']));
   const acc = work.accession;
   if (isObject(acc) && str(acc.institution) && str(acc.id)) out.accession = pick(acc, ['institution', 'id']);
+  if (!WORK_REF_IDS.some((k) => k in out)) delete out.creator;
   return out;
 }
 

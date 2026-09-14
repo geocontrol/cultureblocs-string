@@ -159,7 +159,7 @@
     }
   },
   {
-    "name": "links, work and kind survive on an annotation",
+    "name": "links, work and kind survive on an annotation; an unidentified work's creator stays local, however famous",
     "fn": "bead",
     "body": {
       "$type": "com.cultureblocs.annotation",
@@ -185,17 +185,16 @@
       "$type": "com.cultureblocs.annotation",
       "createdAt": "2026-08-15T21:04:00Z",
       "note": "Longer in front of it than I meant to be.",
+      "work": {
+        "title": "Weeping Woman",
+        "date": "1937"
+      },
       "links": [
         {
           "uri": "https://tate.org.uk/x",
           "title": "at the Tate"
         }
-      ],
-      "work": {
-        "title": "Weeping Woman",
-        "creator": "Picasso",
-        "date": "1937"
-      }
+      ]
     }
   },
   {
@@ -947,7 +946,7 @@
     }
   },
   {
-    "name": "work ref whose descriptor.creatorDid is not a DID publishes without it",
+    "name": "work ref whose descriptor.creatorDid is not a DID publishes without it — and, so unidentified, without its creator",
     "fn": "ref",
     "body": {
       "type": "work",
@@ -962,8 +961,7 @@
       "type": "work",
       "role": "subject",
       "descriptor": {
-        "label": "Crash",
-        "creator": "J. G. Ballard"
+        "label": "Crash"
       }
     }
   },
@@ -988,7 +986,7 @@
     }
   },
   {
-    "name": "annotation: a work.creatorDid that is not a DID does not publish",
+    "name": "annotation: a work.creatorDid that is not a DID does not publish — and, so unidentified, neither does the creator",
     "fn": "bead",
     "body": {
       "$type": "com.cultureblocs.annotation",
@@ -1005,8 +1003,288 @@
       "createdAt": "2026-08-15T21:04:00Z",
       "kind": "view",
       "work": {
-        "title": "Crash",
-        "creator": "J. G. Ballard"
+        "title": "Crash"
+      }
+    }
+  },
+  {
+    "name": "person ref: only public-authority ids publish; an email alongside a wikidata id is dropped",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "J. G. Ballard"
+      },
+      "externalIds": [
+        {
+          "scheme": "wikidata",
+          "id": "Q190379"
+        },
+        {
+          "scheme": "email",
+          "id": "jg@example.com"
+        }
+      ]
+    },
+    "expected": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "J. G. Ballard"
+      },
+      "externalIds": [
+        {
+          "scheme": "wikidata",
+          "id": "Q190379"
+        }
+      ]
+    }
+  },
+  {
+    "name": "person ref: an email alone does not identify a person",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "externalIds": [
+        {
+          "scheme": "email",
+          "id": "jane@example.com"
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "person ref: an unknown scheme does not identify a person",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Jane Doe"
+      },
+      "externalIds": [
+        {
+          "scheme": "twitter",
+          "id": "@janedoe"
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "person ref with a DID publishes, but its non-authority ids do not",
+    "fn": "ref",
+    "body": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ben Pester"
+      },
+      "did": "did:plc:pester",
+      "externalIds": [
+        {
+          "scheme": "handle",
+          "id": "pester.bsky.social"
+        }
+      ]
+    },
+    "expected": {
+      "type": "person",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ben Pester"
+      },
+      "did": "did:plc:pester"
+    }
+  },
+  {
+    "name": "an unrecognised type is held to the person rule: an authority id identifies it",
+    "fn": "ref",
+    "body": {
+      "type": "individual",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ursula K. Le Guin"
+      },
+      "externalIds": [
+        {
+          "scheme": "viaf",
+          "id": "96999624"
+        },
+        {
+          "scheme": "email",
+          "id": "x@example.com"
+        }
+      ]
+    },
+    "expected": {
+      "type": "individual",
+      "role": "mention",
+      "descriptor": {
+        "label": "Ursula K. Le Guin"
+      },
+      "externalIds": [
+        {
+          "scheme": "viaf",
+          "id": "96999624"
+        }
+      ]
+    }
+  },
+  {
+    "name": "work ref: any id scheme identifies a work, and its maker's name then publishes",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "The Left Hand of Darkness",
+        "creator": "Ursula K. Le Guin",
+        "date": "1969"
+      },
+      "externalIds": [
+        {
+          "scheme": "isbn",
+          "id": "9780441478125"
+        }
+      ]
+    },
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "The Left Hand of Darkness",
+        "creator": "Ursula K. Le Guin",
+        "date": "1969"
+      },
+      "externalIds": [
+        {
+          "scheme": "isbn",
+          "id": "9780441478125"
+        }
+      ]
+    }
+  },
+  {
+    "name": "work ref: an unidentified work publishes its label and date, but not a bare maker's name",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Dog Days (zine)",
+        "creator": "Jane Doe",
+        "date": "2026"
+      }
+    },
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Dog Days (zine)",
+        "date": "2026"
+      }
+    }
+  },
+  {
+    "name": "work ref: a maker identified by creatorDid publishes their name",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Dog Days (zine)",
+        "creator": "Jane Doe",
+        "creatorDid": "did:plc:janedoe"
+      }
+    },
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Dog Days (zine)",
+        "creator": "Jane Doe",
+        "creatorDid": "did:plc:janedoe"
+      }
+    }
+  },
+  {
+    "name": "work ref: a malformed id is not identification, so the maker's name stays local",
+    "fn": "ref",
+    "body": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Dog Days (zine)",
+        "creator": "Jane Doe",
+        "creatorDid": "jane"
+      },
+      "externalIds": [
+        {
+          "scheme": "isbn"
+        }
+      ]
+    },
+    "expected": {
+      "type": "work",
+      "role": "subject",
+      "descriptor": {
+        "label": "Dog Days (zine)"
+      }
+    }
+  },
+  {
+    "name": "annotation work: an unidentified work publishes without its bare creator name",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-09-14T10:00:00Z",
+      "work": {
+        "title": "Untitled (kitchen)",
+        "creator": "J",
+        "date": "2025"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-09-14T10:00:00Z",
+      "work": {
+        "title": "Untitled (kitchen)",
+        "date": "2025"
+      }
+    }
+  },
+  {
+    "name": "annotation work: an accession number identifies the work, so its creator publishes",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-09-14T10:00:00Z",
+      "work": {
+        "title": "Gasholder",
+        "creator": "A. Painter",
+        "accession": {
+          "institution": "did:plc:museum",
+          "id": "T01234"
+        }
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.annotation",
+      "createdAt": "2026-09-14T10:00:00Z",
+      "work": {
+        "title": "Gasholder",
+        "creator": "A. Painter",
+        "accession": {
+          "institution": "did:plc:museum",
+          "id": "T01234"
+        }
       }
     }
   }

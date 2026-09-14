@@ -19,6 +19,13 @@ from .lexicon import DID_RE
 ANNOTATION = "com.cultureblocs.annotation"
 ROLES = ("subject", "mention")
 NON_PERSON_TYPES = ("work", "event", "venue", "concept")
+# Registries of people who are already public. On a person ref (or a ref of an
+# unrecognised type) only these ids publish, and only these identify someone:
+# an email, a handle or an unknown scheme names a person without them having
+# chosen to be public. LOOM.md §9.8.
+PERSON_AUTHORITIES = ("wikidata", "viaf", "isni", "orcid", "musicbrainz", "discogs", "ipi")
+# What identifies a deprecated #workRef, making its creator's name public record.
+WORK_REF_IDS = ("creatorDid", "wikidata", "linkedArt", "accession")
 BEAD_FIELDS = ("createdAt", "kind", "note")
 STRAND_FIELDS = ("createdAt", "title", "narrative", "day")
 
@@ -79,7 +86,10 @@ def strip_ref(ref, anchored: bool = True) -> dict | None:
     Returns:
         The stripped ref, or None when it lacks a type or label, or when it
         is a person ref — or a ref of any type other than work, event,
-        venue or concept — with neither a DID nor an external identifier.
+        venue or concept — with neither a DID nor a public-authority id
+        (PERSON_AUTHORITIES; other schemes are dropped from such refs).
+        `descriptor.creator` publishes only when the maker or the thing is
+        identified: a creatorDid, the ref's own did, or a surviving id.
         A `did` or `descriptor.creatorDid` that does not match the DID
         pattern is dropped, as if absent.
     """
@@ -96,11 +106,17 @@ def strip_ref(ref, anchored: bool = True) -> dict | None:
     }
     if _did(ref.get("did")):
         out["did"] = ref["did"]
+    person_like = ref["type"] not in NON_PERSON_TYPES   # unknown types fail closed
     ids = strip_external_ids(ref.get("externalIds"))
+    if person_like:
+        ids = [e for e in ids if e["scheme"] in PERSON_AUTHORITIES]
     if ids:
         out["externalIds"] = ids
-    if ref["type"] not in NON_PERSON_TYPES and "did" not in out and not ids:
-        return None  # a bare name may be a private individual; unknown types fail closed
+    if person_like and "did" not in out and not ids:
+        return None  # a bare name may be a private individual
+    identified = "creatorDid" in out["descriptor"] or "did" in out or bool(ids)
+    if not identified:
+        out["descriptor"].pop("creator", None)  # so may a maker's bare name
     index = ref.get("index")
     if anchored and isinstance(index, dict) \
             and _int(index.get("byteStart")) and _int(index.get("byteEnd")):
@@ -125,7 +141,8 @@ def strip_presentation(presentation) -> dict | None:
 
 
 def strip_work_ref(work) -> dict | None:
-    """Deprecated #workRef on annotations: identifiers and descriptors, never `image`."""
+    """Deprecated #workRef on annotations: identifiers and descriptors, never `image`.
+    Its `creator` publishes only when the work or its maker is identified."""
     if not isinstance(work, dict):
         return None
     out = _drop_bad_creator_did(
@@ -134,6 +151,8 @@ def strip_work_ref(work) -> dict | None:
     if isinstance(accession, dict) and _str(accession.get("institution")) \
             and _str(accession.get("id")):
         out["accession"] = _pick(accession, ("institution", "id"))
+    if not any(k in out for k in WORK_REF_IDS):
+        out.pop("creator", None)
     return out
 
 
