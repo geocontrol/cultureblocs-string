@@ -6,12 +6,12 @@ identity. What may leave is decided in strip.py, the one canonical copy.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import urllib.parse
 import urllib.request
 
-from .strip import strip_bead, strip_public, strip_strand  # noqa: F401 (re-exported)
+from .strip import (content_hash, drift_hash, strip_bead,  # noqa: F401 (re-exported)
+                    strip_public, strip_strand)
 
 STRAND = "com.cultureblocs.strand"
 BEAD_TYPES = ("com.cultureblocs.bead", "com.cultureblocs.annotation")
@@ -38,10 +38,6 @@ def _xrpc(pds: str, method: str, *, body: dict | None = None,
     with urllib.request.urlopen(req, timeout=30) as r:
         raw = r.read()
         return json.loads(raw) if raw else {}
-
-def content_hash(obj: dict) -> str:
-    return hashlib.sha256(
-        json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _rkey_for(rec: dict, fallback: str) -> str:
@@ -194,7 +190,7 @@ def publish_strand(store, strand_id: str, identity: dict,
         res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
             "repo": did, "collection": rec["type"],
             "rkey": _rkey_for(rec, rid), "record": stripped})
-        store.set_published(rid, res["uri"], content_hash(stripped))
+        store.set_published(rid, res["uri"], drift_hash(rec["body"]))
         item_refs.append({"uri": res["uri"], "cid": res["cid"]})
         published.append(res["uri"])
     stripped_strand = strip_strand(strand["body"], item_refs)

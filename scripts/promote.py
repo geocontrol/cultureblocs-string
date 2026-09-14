@@ -31,7 +31,6 @@ Options: --pds URL  --spine URL  --token SPINE_TOKEN  --dry-run
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -40,7 +39,8 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "string"))
-from app.strip import strip_bead, strip_strand  # noqa: E402  (the one canonical strip)
+from app.strip import (content_hash, drift_hash,  # noqa: E402  (the one canonical strip)
+                       strip_bead, strip_strand)
 
 STRAND = "com.cultureblocs.strand"
 BEAD_TYPES = ("com.cultureblocs.bead", "com.cultureblocs.annotation")
@@ -84,11 +84,6 @@ def xrpc(args, method: str, *, params: dict | None = None,
     if params:
         url += "?" + urllib.parse.urlencode(params)
     return http(url, body=body, token=token)
-
-
-def content_hash(obj: dict) -> str:
-    return hashlib.sha256(
-        json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 # ---------------- commands ----------------
@@ -141,7 +136,7 @@ def cmd_publish(args) -> None:
                 "repo": did, "collection": rec["type"], "rkey": rid,
                 "record": stripped})
             spine_writeback(args, f"/records/{rid}/published",
-                            body={"uri": res["uri"], "hash": content_hash(stripped)})
+                            body={"uri": res["uri"], "hash": drift_hash(rec["body"])})
             item_refs.append({"uri": res["uri"], "cid": res["cid"]})
             print(f"  bead  {res['uri']}")
         stripped_strand = strip_strand(s["body"], item_refs)
@@ -186,7 +181,7 @@ def cmd_status(args) -> None:
             rid = it["uri"].replace("spine://records/", "")
             rec = spine(args, f"/records/{rid}")
             if rec.get("publishedUri") and \
-               content_hash(strip_bead(rec["body"])) != rec.get("publishedHash"):
+               drift_hash(rec["body"]) != rec.get("publishedHash"):
                 drift.append(rid)
         state = f"{len(drift)} beads edited since publish — re-publish to update" \
                 if drift else "in sync"

@@ -11,6 +11,9 @@ Ported to sdk/js/strip.js; both run tests/fixtures/strip-cases.json.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+
 from .lexicon import DID_RE
 
 ANNOTATION = "com.cultureblocs.annotation"
@@ -188,6 +191,34 @@ def strip_strand(body: dict, items: list[dict] | None = None) -> dict:
     if items is not None:
         out["items"] = items
     return out
+
+
+def content_hash(obj: dict) -> str:
+    """sha256 of the canonical JSON form (sorted keys, no whitespace); matches
+    sdk/js/strip.js contentHash."""
+    return hashlib.sha256(
+        json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def drift_hash(body: dict) -> str:
+    """The publishedHash of a bead or annotation: what `status` compares.
+
+    Hashes the local body that was published, not the record the PDS got.
+    That record's `images` hold blob refs that exist only after an upload, so
+    they can never be recomputed from the String — hashing them made every
+    bead with a photo look edited forever. Instead each local photo counts by
+    its content-addressed file name, alt text and dimensions: adding, removing,
+    replacing or re-describing a photo is drift; which host served it is not.
+    A bead with no photos hashes exactly as content_hash(strip_bead(body)).
+    """
+    out = strip_bead(body)
+    media = [{"file": m["uri"].rsplit("/", 1)[-1],
+              **{k: m[k] for k in ("alt", "aspectRatio") if k in m}}
+             for m in (body.get("media") if isinstance(body.get("media"), list) else [])
+             if isinstance(m, dict) and _str(m.get("uri"))]
+    if media:
+        out["media"] = media
+    return content_hash(out)
 
 
 def strip_public(body: dict) -> dict:
