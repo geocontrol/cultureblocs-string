@@ -290,7 +290,11 @@ class Store:
             if row is None:
                 return None
             body = json.loads(row["body"])
-            body.update(fields)
+            for key, value in fields.items():   # null removes a field
+                if value is None:
+                    body.pop(key, None)
+                else:
+                    body[key] = value
             payload = json.dumps(body, separators=(",", ":"))
             stamp = self.hlc.now()
             sql = ("UPDATE records SET body=?, revision=revision+1, hlc=?,"
@@ -333,15 +337,23 @@ class Store:
                 self._log(rid, "state", row["body"], stamp, device, actor)
             return self.get(rid)
 
-    def delete(self, rid: str, *, device: str | None = None,
-               actor: str | None = None) -> bool:
+    def delete(self, rid: str, *, expect_hlc: str | None = None,
+               device: str | None = None, actor: str | None = None):
+        """Delete a record: True, False if there is none, or STALE when
+        `expect_hlc` no longer matches (enforced by the DELETE itself, as in
+        `patch`). A refused delete writes nothing to the change feed."""
         with self._lock:
             cur = self.conn.execute("SELECT body FROM records WHERE id=?", (rid,))
             row = cur.fetchone()
             if row is None:
                 return False
+            sql, args = "DELETE FROM records WHERE id=?", [rid]
+            if expect_hlc is not None:
+                sql += " AND IFNULL(hlc, '') = ?"
+                args.append(expect_hlc)
             with self.conn:
-                self.conn.execute("DELETE FROM records WHERE id=?", (rid,))
+                if self.conn.execute(sql, args).rowcount == 0:
+                    return self.STALE
                 self._log(rid, "delete", row["body"], self.hlc.now(), device, actor)
             return True
 

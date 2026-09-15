@@ -161,7 +161,8 @@ only path that publishes photos, until media blobs land in the promoter.
 |---|---|
 | `POST /records` | batch ingest, idempotent on `dedupeKey`, lexicon-validated |
 | `GET /records?day=&type=&sourceApp=` · `GET /days` | query |
-| `PATCH /records/{id}` | edit the envelope (note, tags, links…), re-validated. Send `If-Match: <hlc>` to be refused with 412 rather than silently overwrite a version you never saw |
+| `PATCH /records/{id}` | edit the envelope (note, tags, links…), re-validated. Send `If-Match: <hlc>` to be refused with 412 rather than silently overwrite a version you never saw; a field sent as `null` is removed |
+| `DELETE /records/{id}` | delete a record; `If-Match: <hlc>` refuses with 412 as PATCH does |
 | `POST /records/{id}/state` | proposal → kept, and the other states |
 | `GET /changes?since=` | append-only feed with cursor (workers hook here); rows carry `hlc`, `deviceId` and `actor` |
 | `POST /media` · `GET /media/{name}` | content-addressed photo store |
