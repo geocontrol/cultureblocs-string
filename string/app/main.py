@@ -147,11 +147,12 @@ def patch(rid: str, body: PatchIn, request: Request,
     """Edit an envelope. Send `If-Match: <hlc>` — the hlc of the version you
     were editing — and the write is refused with 412 if the record has moved
     on since. Without the header the old last-writer-wins applies, so
-    existing clients are unaffected."""
+    existing clients are unaffected. A field sent as `null` is removed from
+    the body; the result is validated as a whole."""
     current = store.get(rid)
     if current is None:
         raise HTTPException(status_code=404, detail="not found")
-    requested = {**current["body"], **body.fields}
+    requested = {k: v for k, v in {**current["body"], **body.fields}.items() if v is not None}
     merged = refs.mirror_annotation_work(current["type"], requested)
     problems = (registry.validate_record(current["type"], merged)
                 + refs.anchor_problems(current["type"], merged))
@@ -274,10 +275,19 @@ def clear_published(rid: str):
 
 
 @app.delete("/records/{rid}", dependencies=[Depends(auth)])
-def delete(rid: str, org: Origin = Depends(origin)):
-    """For curation records (strands). Beads are mint facts — the UI should
-    not offer deletion for them, but the API does not police intent."""
-    if not store.delete(rid, device=org.device, actor=org.actor):
+def delete(rid: str, request: Request, org: Origin = Depends(origin)):
+    """Delete a record. Send `If-Match: <hlc>` — the hlc of the version you
+    decided to delete — and it is refused with 412 if the record has moved on
+    since, exactly as PATCH. Without the header it deletes unconditionally,
+    as it always has."""
+    expect = (request.headers.get("if-match") or "").strip('"') or None
+    result = store.delete(rid, expect_hlc=expect, device=org.device, actor=org.actor)
+    if result is store.STALE:
+        raise HTTPException(status_code=412, detail={
+            "error": "record has changed since you loaded it",
+            "yourHlc": expect, "currentHlc": (store.get(rid) or {}).get("hlc"),
+            "current": store.get(rid)})
+    if not result:
         raise HTTPException(status_code=404, detail="not found")
     return {"deleted": rid}
 
