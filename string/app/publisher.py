@@ -217,12 +217,13 @@ def unpublish_strand(store, strand_id: str, identity: dict) -> dict:
         if rec and rec.get("publishedUri"):
             coll = rec["publishedUri"].split("/")[-2]
             _xrpc(pds, "com.atproto.repo.deleteRecord", token=jwt, body={
-                "repo": did, "collection": coll, "rkey": rid})
+                "repo": did, "collection": coll, "rkey": _rkey_for(rec, rid)})
             store.set_published(rid, None, None)
             removed += 1
     if strand.get("publishedUri"):
         _xrpc(pds, "com.atproto.repo.deleteRecord", token=jwt, body={
-            "repo": did, "collection": STRAND, "rkey": strand_id})
+            "repo": did, "collection": STRAND,
+            "rkey": _rkey_for(strand, strand_id)})
         store.set_published(strand_id, None, None)
         removed += 1
     return {"removed": removed}
