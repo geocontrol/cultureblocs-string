@@ -32,8 +32,6 @@ Three principles, enforced by architecture rather than policy:
     lexicons/community/         vendored Lexicon Community schemas
                                 (calendar events + RSVPs, locations)
     string/                     the String service (FastAPI + SQLite WAL)
-    studio/                     CultureBloc Studio — pull the totem over Web
-                                Serial, resolve times, tell, push to the String
     timeline/                   "the day's string" — annotate, photos, links,
                                 group into strands, publish
     web/                        <cultureblocs-strands> embed component
@@ -59,7 +57,6 @@ Three principles, enforced by architecture rather than policy:
 |-------|---------|
 | :8100 | String API |
 | :8101 | Timeline ("the day's string") |
-| :8102 | CultureBloc Studio |
 | :8103 | Pocket Totem (PWA — phone minting; live at cultureblocs.com/pocket/) |
 | :8104 | AppView (network index — public references) |
 
@@ -68,9 +65,11 @@ Open the timeline, load a day, and you have the whole loop minus a totem.
 ## Minting — where beads begin
 
 - **Totem** (M5Stack StickS3): mint by button press, mutual press for
-  encounters; pull over USB in the **Studio** (:8102), which resolves the
-  device's elapsed-time counters to real instants, manages the mask
-  wardrobe, and pushes kept beads in.
+  encounters; pull over USB from **Loom's Feeds surface**
+  ([cultureblocs-loom](https://github.com/geocontrol/cultureblocs-loom), :8108),
+  which resolves the device's elapsed-time counters to real instants, manages
+  the mask wardrobe, and lands kept beads as proposals you keep or release
+  before they reach the String.
 - **CreativeID & venues**: `scripts/creative.py` (profile / work /
   connect) and `scripts/venue.py` (profile / listing) — self-asserted
   claims and venue listings that beads can point at. See

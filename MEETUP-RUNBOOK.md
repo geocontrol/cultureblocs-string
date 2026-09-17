@@ -42,7 +42,7 @@ evening for people across technology, data and culture. Newcomers welcome." \
 
 ## Event day
 
-- Totems: charged, cleared (pull + gated clear in Studio), wardrobe
+- Totems: charged, cleared (pull + gated clear in Loom's Feeds), wardrobe
   set (a "meetup" mask?).
 - Mint through the evening: arrivals, each share, moments worth
   keeping. Mutual mints for meetings — see consent below.
@@ -50,7 +50,9 @@ evening for people across technology, data and culture. Newcomers welcome." \
 
 ## The telling (day after)
 
-1. Studio: pull the totem, date/name the occasion, push to String.
+1. Loom (:8108) → Feeds: connect the totem, pull, then clear it. The beads
+   arrive as proposals on their own days; keep the ones worth keeping and
+   Send them to the String.
 2. Timeline: annotate, attach photos, fix kinds, group the evening
    into a strand — "Creative × Tech Summer Meetup, <date>" — with
    place and the Luma link.

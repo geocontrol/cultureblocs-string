@@ -127,11 +127,11 @@ treat backups as credential-bearing.
 
 1. Mac: `docker compose down`; final backup of `data/`.
 2. Brick: data copied, token set, compose up; timeline loads a day ✓.
-3. Repoint: timeline/Studio settings → `http://brick:8100` + token;
+3. Repoint: timeline and Loom settings → `http://brick:8100` + token;
    LaunchAgents on the Mac boot out (scrobbler + sonos-lastfm — both
    now live on the brick).
-4. Watch one full day: a scrobble session appears; a totem push from
-   the Studio lands; a publish works.
+4. Watch one full day: a scrobble session appears; a totem pull from
+   Loom's Feeds lands; a publish works.
 5. Only then delete the Mac's `data/`.
 
 ## Later, on-theme
