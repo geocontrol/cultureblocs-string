@@ -180,7 +180,7 @@ would be a bonus, not the test.
 
 ## Naming
 
-The family is String, beads, strands, totem, Studio. For the venue side,
+The family is String, beads, strands, totem, Loom. For the venue side,
 words from the room itself:
 
 - **Doors** — "doors at 7:30". Idiomatic, warm, about the moment an

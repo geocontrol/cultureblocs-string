@@ -46,15 +46,6 @@ services:
       - ./timeline:/usr/share/nginx/html:ro
     restart: unless-stopped
 
-  studio:
-    image: nginx:alpine
-    ports: ["8102:80"]
-    volumes:
-      - ./studio:/usr/share/nginx/html:ro
-    restart: unless-stopped
-    # Note: Web Serial (USB pull/push/clear) requires a secure context.
-    # http://localhost:8102 qualifies; a LAN IP does not — use Tailscale
-    # HTTPS or open the file directly if accessing from another machine.
 
   rounds:
     image: nginx:alpine

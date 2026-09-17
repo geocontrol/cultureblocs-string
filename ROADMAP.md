@@ -5,7 +5,7 @@ dependencies named. Building in public: if something here interests you,
 say so — the meetup is the place, or open an issue.
 
 *Last updated: July 2026. Done so far, for context: the String (record
-store, timeline, Studio), the totem pipeline, the scrobbler, the
+store, timeline), the totem pipeline, the scrobbler, the
 `com.cultureblocs.*` lexicons published as a resolvable ATProto schema
 authority, strand publishing under held identities, and two sites
 rendering strands live from the Atmosphere.*
