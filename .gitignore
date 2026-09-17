@@ -36,3 +36,9 @@ Thumbs.db
 .env
 .env.*
 docker-compose.override.yml
+
+# --- scratch notes ---
+# This repo is public, and a note to self is not a safe place for a
+# credential: notes/lastfm.txt held a live API key and shared secret for two
+# months. Where credentials actually live: HOST-SPEC.md.
+notes/

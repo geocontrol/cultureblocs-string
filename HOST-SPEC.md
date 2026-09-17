@@ -76,6 +76,38 @@ unit with `Restart=always` — and remember the lesson from the Mac:
 set `WorkingDirectory=` to somewhere writable; it creates a relative
 `data/` dir and crashes from `/`.
 
+## Where credentials live (and where they must not)
+
+**This repository is public. No credential belongs in it in any form,
+including a note to self.** A Last.fm API key and shared secret were
+committed as `notes/lastfm.txt` in July 2026 and stayed readable for two
+months; they have been rotated and the file is gone. `notes/` is now
+ignored, but the rule is the habit, not the ignore line.
+
+The two Last.fm consumers on the Mac today, and the one place each reads
+from:
+
+| Consumer | Needs | Configured in |
+|---|---|---|
+| `workers/scrobbler.py`, hourly as `com.geekyoto.cultureblocs-scrobbler` | `LASTFM_USER`, `LASTFM_API_KEY` — **read-only, no secret** | the `EnvironmentVariables` dict in `~/Library/LaunchAgents/com.geekyoto.cultureblocs-scrobbler.plist` |
+| `sonos-lastfm`, daemon as `com.geekyoto.sonos-lastfm` | `LASTFM_USERNAME`, `LASTFM_PASSWORD`, `LASTFM_API_KEY`, `LASTFM_API_SECRET` — it *writes* scrobbles | the macOS Keychain, service `sonos-lastfm`, managed by its own CLI (it can also read `~/.sonos_lastfm/.env`) |
+
+The scrobbler needs only the key: it reads your own public recent tracks
+(`workers/scrobbler.py` says so at the top), so the shared secret is used by
+nothing in this repo.
+
+After changing the scrobbler's key, reload the agent and watch the log:
+
+    launchctl bootout gui/$(id -u)/com.geekyoto.cultureblocs-scrobbler
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.geekyoto.cultureblocs-scrobbler.plist
+    tail -f /tmp/cultureblocs-scrobbler.log
+
+On the brick these become the units above, and the key belongs in
+`EnvironmentFile=` pointing outside the checkout rather than inline in
+`Environment=` — the `LASTFM_API_KEY=xxx` above is a placeholder, not an
+invitation. Identity app passwords already live in the String's `identities`
+table, which is why backups are credential-bearing (below).
+
 ## Backups (non-negotiable once this is the only copy)
 
 Nightly, e.g. `/etc/cron.daily/string-backup`:
