@@ -138,10 +138,25 @@ export async function fetchActorStrands(actor, {pds=null, limit=0, fetchFn=fetch
 if (typeof customElements !== 'undefined' && typeof HTMLElement !== 'undefined') {
 class CultureblocsStrands extends HTMLElement {
   static get observedAttributes(){ return ['actor','pds','src','limit'] }
-  attributeChangedCallback(){ this.#load() }
-  connectedCallback(){ this.#load() }
+  attributeChangedCallback(){ if(this.isConnected) this.#schedule() }
+  connectedCallback(){ this.#schedule() }
+
+  /* Attributes arrive one at a time (a framework sets `actor` before `limit`),
+   * and each change used to start its own fetch: the unlimited one, being
+   * slower, finished last and painted every strand. Coalesce a burst of
+   * changes into one load, and drop the result of any load a newer one has
+   * superseded. */
+  #pending = false;
+  #generation = 0;
+  #schedule(){
+    if(this.#pending) return;
+    this.#pending = true;
+    queueMicrotask(()=>{ this.#pending = false; this.#load(); });
+  }
 
   async #load(){
+    const generation = ++this.#generation;
+    const stale = () => generation !== this.#generation;
     const actor = this.getAttribute('actor');
     const src = this.getAttribute('src');
     const limit = parseInt(this.getAttribute('limit') || '0');
@@ -149,6 +164,7 @@ class CultureblocsStrands extends HTMLElement {
       if(actor){
         const bundles = await fetchActorStrands(actor,
           {pds: this.getAttribute('pds'), limit});
+        if(stale()) return;
         this.#render(bundles, '');
         return;
       }
@@ -156,10 +172,12 @@ class CultureblocsStrands extends HTMLElement {
       const res = await fetch(src);
       if(!res.ok) throw new Error(res.status);
       const doc = await res.json();
+      if(stale()) return;
       let strands = doc.strands || [];
       if(limit > 0) strands = strands.slice(0, limit);
       this.#render(strands, src);
     }catch(e){
+      if(stale()) return;
       this.#shadow().innerHTML = '';   // fail silent on a public page
     }
   }
@@ -247,7 +265,7 @@ class CultureblocsStrands extends HTMLElement {
       .work{font-weight:600;font-size:.92em}
       .artist{font-style:italic;font-size:.88em}
       .media{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
-      .media img{height:88px;border-radius:4px;border:1px solid var(--cb-edge,#E4E2DB)}
+      .media img{height:88px;width:auto;max-width:100%;object-fit:cover;border-radius:4px;border:1px solid var(--cb-edge,#E4E2DB)}
       .links{margin-top:.25rem;font-size:.8em}
       .links a{color:var(--cb-accent,#2B4BC7)}
     </style>
