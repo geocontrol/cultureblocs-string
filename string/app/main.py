@@ -11,6 +11,8 @@ Interfaces:
   GET   /changes?since=N  append-only change feed with cursor (sync consumers)
   GET   /days             days with record counts (timeline nav)
   GET   /lexicons         the loaded schema set
+  GET   /destinations     where a published strand can also be posted
+  POST  /publish/{id}     publish a strand; optionally syndicate it too
   GET   /health
 
 Auth: if SPINE_TOKEN is set, all endpoints require
@@ -34,7 +36,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import publisher, refs
+from . import publisher, refs, syndicate
 from .db import STATES, Store
 from .lexicon import LexiconRegistry
 
@@ -227,19 +229,47 @@ def delete_identity(name: str):
 
 class PublishIn(BaseModel):
     identity: str
+    # Syndication (spec: publish destinations). Ignored by /unpublish.
+    destinations: list[str] = Field(default_factory=list, max_length=20)
+    postText: str | None = Field(default=None, max_length=5000)
+
+
+@app.get("/destinations", dependencies=[Depends(auth)])
+def destinations():
+    """Where a published strand can also go, and each one's limits."""
+    return {"destinations": syndicate.available()}
 
 
 @app.post("/publish/{strand_id}", dependencies=[Depends(auth)])
 def publish(strand_id: str, body: PublishIn):
+    """Publish a strand to the PDS, then post it to any `destinations`.
+
+    Two phases in one request. Everything that could refuse the syndication
+    is checked first, so nothing publishes on a request that would then
+    fail on its post text. Phase 2 cannot fail phase 1: a destination that
+    fails is reported in `syndications` and recorded nowhere.
+    """
     ident = store.identity_get(body.identity)
     if ident is None:
         raise HTTPException(status_code=404, detail="unknown identity")
+    if body.destinations:
+        problems = syndicate.check(body.destinations, body.postText)
+        rec = store.get(strand_id)
+        if rec is not None and rec["type"] != publisher.STRAND:
+            problems.append("only a strand is posted elsewhere; this record publishes on its own")
+        if problems:
+            raise HTTPException(status_code=422, detail="; ".join(problems))
     try:
-        return publisher.publish_strand(store, strand_id, ident, media_dir=MEDIA_DIR)
+        result, held = publisher.publish_strand_full(store, strand_id, ident,
+                                                     media_dir=MEDIA_DIR)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"publish failed: {exc}")
+    if body.destinations and held is not None:
+        result["syndications"] = syndicate.run(store, strand_id, body.destinations,
+                                               body.postText, held)
+    return result
 
 
 @app.post("/unpublish/{strand_id}", dependencies=[Depends(auth)])
