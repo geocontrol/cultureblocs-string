@@ -61,6 +61,38 @@ may be a private individual (LOOM.md §9.8):
 The note text publishes exactly as written: selecting a strand is the act
 of consent.
 
+## Syndication: posting a published strand elsewhere
+
+The PDS is where a strand lives; other services get renderings of it
+(POSSE). `POST /publish/<id>` takes two optional fields:
+
+    { "identity": "personal", "destinations": ["bluesky"], "postText": "A day out" }
+
+and runs in two phases. Phase 1 is the publish above, unchanged. Phase 2
+posts to each destination and reports it under `syndications` in the
+answer: `posted` (with `remoteUrl`), `already` (used before, so skipped), or
+`failed` (with `reason`). A failed destination leaves the strand published
+and records nothing, so it can be tried again. Bad requests — an unknown
+destination, empty text, text over a destination's limit — are refused
+with 422 **before** anything publishes.
+
+`GET /destinations` lists what exists and each one's limits.
+
+**One-shot.** Each (strand, destination) pair is posted once; the
+`syndications` table enforces it, so republishing never double-posts.
+Unpublishing a strand does not delete its posts.
+
+**Bluesky** writes an `app.bsky.feed.post` into the same repo, under the
+session the publish already opened, with up to four of the images phase 1
+already uploaded — reused, not re-uploaded. The text is exactly what was
+written, at most 300 characters (counted in code points, like the lexicon
+validator). No link back yet: there is no per-strand web page to point at.
+
+**Adding a destination** is one module in `string/app/syndicate/` exposing
+`NAME`, `LIMITS` and `post(session, strand, items, text)`, plus one line in
+`DESTINATIONS`. If it composes text from `narrative` or a bead's `note`, it
+must route that text through the strip first.
+
 ## Known limitations (release one)
 
 - **Media now publishes**: at publish time, each bead's local photos are
