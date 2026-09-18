@@ -115,6 +115,37 @@ def test_a_name_given_twice_posts_once(monkeypatch, store):
     assert len(out) == 1 and calls == ["hi"]
 
 
+def test_a_malformed_adapter_result_is_reported_failed_and_records_nothing(monkeypatch, store):
+    def post(session, strand, items, text):
+        return {}
+    bad = types.SimpleNamespace(NAME="bluesky", LIMITS={"text": 300}, post=post)
+    good, calls = fake_adapter("other")
+    monkeypatch.setitem(syndicate.DESTINATIONS, "bluesky", bad)
+    monkeypatch.setitem(syndicate.DESTINATIONS, "other", good)
+    out = syndicate.run(store, store.rid, ["bluesky", "other"], "hi", HELD)
+    assert out[0]["status"] == "failed"
+    assert out[1]["status"] == "posted", "next destination still runs"
+    assert [s["destination"] for s in store.syndications(store.rid)] == ["other"]
+    assert calls == ["hi"]
+
+
+def test_a_recording_failure_after_a_successful_post_warns_but_does_not_fail(monkeypatch, store):
+    mod, calls = fake_adapter("bluesky")
+    monkeypatch.setitem(syndicate.DESTINATIONS, "bluesky", mod)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("db is locked")
+    monkeypatch.setattr(store, "add_syndication", boom)
+    [r] = syndicate.run(store, store.rid, ["bluesky"], "hi", HELD)
+    assert r["status"] == "posted"
+    assert r["destination"] == "bluesky"
+    assert r["remoteUrl"] == "https://bluesky.example/1"
+    assert r["postedAt"] is None
+    assert r["droppedImages"] == 0
+    assert "do not post it again" in r["warning"]
+    assert "db is locked" in r["warning"]
+
+
 def test_the_adapter_is_given_exactly_what_phase_1_held(monkeypatch, store):
     seen = {}
 

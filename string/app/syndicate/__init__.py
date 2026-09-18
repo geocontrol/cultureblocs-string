@@ -15,9 +15,16 @@ the strip first. The Bluesky adapter reads only the text a person wrote.
 """
 from __future__ import annotations
 
+import threading
+
 from . import bluesky
 
 DESTINATIONS = {bluesky.NAME: bluesky}
+
+# FastAPI runs sync routes on a threadpool, so two tabs/devices publishing the
+# same strand's syndication at once are a real race; this serialises the
+# check -> post -> record sequence so they can't both post.
+_lock = threading.Lock()
 
 
 def available() -> list[dict]:
@@ -62,20 +69,31 @@ def run(store, record_id: str, destinations: list[str], text: str,
     """
     results = []
     for dest in dict.fromkeys(destinations):
-        done = store.syndication(record_id, dest)
-        if done:
-            results.append({"destination": dest, "status": "already",
-                            "remoteUrl": done["remoteUrl"], "postedAt": done["postedAt"]})
-            continue
-        try:
-            out = post(dest, session=held["session"], strand=held["strand"],
-                       items=held["items"], text=text)
-        except Exception as exc:  # noqa: BLE001 — any adapter failure is reported, not raised
-            results.append({"destination": dest, "status": "failed", "reason": str(exc)})
-            continue
-        row = store.add_syndication(record_id, dest, out["id"], out.get("url")) or {}
-        results.append({"destination": dest, "status": "posted",
-                        "remoteUrl": row.get("remoteUrl", out.get("url")),
-                        "postedAt": row.get("postedAt"),
-                        "droppedImages": out.get("dropped", 0)})
+        with _lock:
+            done = store.syndication(record_id, dest)
+            if done:
+                results.append({"destination": dest, "status": "already",
+                                "remoteUrl": done["remoteUrl"], "postedAt": done["postedAt"]})
+                continue
+            try:
+                out = post(dest, session=held["session"], strand=held["strand"],
+                           items=held["items"], text=text)
+                remote_id = out["id"]
+                remote_url = out.get("url")
+                dropped = out.get("dropped", 0)
+            except Exception as exc:  # noqa: BLE001 — any adapter failure is reported
+                results.append({"destination": dest, "status": "failed", "reason": str(exc)})
+                continue
+            try:
+                row = store.add_syndication(record_id, dest, remote_id, remote_url) or {}
+            except Exception as exc:  # noqa: BLE001 — posted but not recorded; never re-post
+                results.append({"destination": dest, "status": "posted", "remoteUrl": remote_url,
+                                "postedAt": None, "droppedImages": dropped,
+                                "warning": f"posted, but the String could not record it "
+                                           f"({exc}); do not post it again"})
+                continue
+            results.append({"destination": dest, "status": "posted",
+                            "remoteUrl": row.get("remoteUrl", remote_url),
+                            "postedAt": row.get("postedAt"),
+                            "droppedImages": dropped})
     return results
