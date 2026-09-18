@@ -1,12 +1,14 @@
 """SQLite (WAL) persistence for the Spine.
 
-Three tables:
+Four tables:
   records    — current state, one row per record, deduped on dedupe_key
   identities — held publishing accounts
   changes    — append-only log of every mutation, carrying an HLC stamp,
                the device that made it and the actor it was made as, so a
                second device can replay the log without echoing its own
                writes back at itself
+  syndications — one row per (record, destination) a published strand was
+               posted to; the row is the one-shot rule (see add_syndication)
 
 Two columns carry most of the new meaning:
 
@@ -68,6 +70,15 @@ CREATE TABLE IF NOT EXISTS changes (
     device_id  TEXT,
     actor      TEXT,
     body       TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS syndications (
+    record_id   TEXT NOT NULL REFERENCES records(id) ON DELETE CASCADE,
+    destination TEXT NOT NULL,
+    remote_id   TEXT NOT NULL,
+    remote_url  TEXT,
+    posted_at   TEXT NOT NULL,
+    PRIMARY KEY (record_id, destination)
 );
 """
 
@@ -376,12 +387,61 @@ class Store:
                           row["body"], stamp, device, actor)
             return True
 
+    # -- syndications ----------------------------------------------------
+    def add_syndication(self, rid: str, destination: str, remote_id: str,
+                        remote_url: str | None) -> dict | None:
+        """Record that a published record was posted to `destination`.
+
+        One row per (record, destination), and the row *is* the one-shot
+        rule: a post cannot be edited, and posting again would double-post
+        to the same followers. So a second add for a pair already present
+        changes nothing and returns the row that was there first. None if
+        there is no such record.
+
+        Not logged to the change feed and not restamped: syndication happens
+        inside the publish request, whose set_published already restamps
+        the strand and logs it, and that is what a second device notices.
+        """
+        with self._lock:
+            if self.conn.execute("SELECT 1 FROM records WHERE id=?", (rid,)).fetchone() is None:
+                return None
+            with self.conn:
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO syndications"
+                    " (record_id, destination, remote_id, remote_url, posted_at)"
+                    " VALUES (?,?,?,?,?)",
+                    (rid, destination, remote_id, remote_url, now_iso()))
+            return self.syndication(rid, destination)
+
+    def syndication(self, rid: str, destination: str) -> dict | None:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT destination, remote_id, remote_url, posted_at FROM syndications"
+                " WHERE record_id=? AND destination=?", (rid, destination)).fetchone()
+            return self._syndication_row(row) if row else None
+
+    def syndications(self, rid: str) -> list[dict]:
+        with self._lock:
+            cur = self.conn.execute(
+                "SELECT destination, remote_id, remote_url, posted_at FROM syndications"
+                " WHERE record_id=? ORDER BY posted_at, destination", (rid,))
+            return [self._syndication_row(r) for r in cur.fetchall()]
+
+    def _with_syndications(self, rec: dict) -> dict:
+        rec["syndications"] = self.syndications(rec["id"])
+        return rec
+
+    @staticmethod
+    def _syndication_row(row: sqlite3.Row) -> dict:
+        return {"destination": row["destination"], "remoteId": row["remote_id"],
+                "remoteUrl": row["remote_url"], "postedAt": row["posted_at"]}
+
     # -- reads -----------------------------------------------------------
     def get(self, rid: str) -> dict | None:
         with self._lock:
             cur = self.conn.execute("SELECT * FROM records WHERE id=?", (rid,))
             row = cur.fetchone()
-            return self._row(row) if row else None
+            return self._with_syndications(self._row(row)) if row else None
 
     def query(self, day: str | None = None, rtype: str | None = None,
               source_app: str | None = None, state: str | None = None,
@@ -403,7 +463,8 @@ class Store:
         sql += " ORDER BY created_at ASC LIMIT ?"
         args.append(limit)
         with self._lock:
-            return [self._row(r) for r in self.conn.execute(sql, args)]
+            return [self._with_syndications(self._row(r))
+                    for r in self.conn.execute(sql, args).fetchall()]
 
     def changes_since(self, since: int, limit: int = 500) -> list[dict]:
         with self._lock:

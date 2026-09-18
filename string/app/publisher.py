@@ -169,16 +169,26 @@ def unpublish_record(store, record_id: str, identity: dict) -> dict:
     return {"removed": 1}
 
 
-def publish_strand(store, strand_id: str, identity: dict,
-                   media_dir=None) -> dict:
+def publish_strand_full(store, strand_id: str, identity: dict,
+                        media_dir=None) -> tuple[dict, dict | None]:
+    """Publish a strand, and hand back what syndication needs.
+
+    Returns `(result, held)`. `result` is what `publish_strand` returns.
+    `held` is what phase 2 of a publish request runs on (see syndicate/):
+    the authenticated session this already opened, so no adapter logs in
+    twice, and the strand and its members *as published* — stripped, with
+    the image refs just uploaded — so no adapter can reach a field the
+    strip withholds. `held` is None for a record that is not a strand.
+    """
     strand = store.get(strand_id)
     if strand is None:
         raise ValueError("not found")
     if strand["type"] != STRAND:
-        return publish_record(store, strand_id, identity)
+        return publish_record(store, strand_id, identity), None
     did, jwt, pds = _login(identity)
     published = []
     item_refs = []
+    items = []
     for it in (strand["body"].get("items") or []):
         rid = it["uri"].replace("spine://records/", "")
         rec = store.get(rid)
@@ -192,6 +202,7 @@ def publish_strand(store, strand_id: str, identity: dict,
             "rkey": _rkey_for(rec, rid), "record": stripped})
         store.set_published(rid, res["uri"], drift_hash(rec["body"]))
         item_refs.append({"uri": res["uri"], "cid": res["cid"]})
+        items.append(stripped)
         published.append(res["uri"])
     stripped_strand = strip_strand(strand["body"], item_refs)
     res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
@@ -199,8 +210,16 @@ def publish_strand(store, strand_id: str, identity: dict,
         "rkey": _rkey_for(strand, strand_id), "record": stripped_strand})
     store.set_published(strand_id, res["uri"], content_hash(stripped_strand))
     published.append(res["uri"])
-    return {"identity": identity["name"], "handle": identity["handle"],
-            "did": did, "records": published, "strandUri": res["uri"]}
+    result = {"identity": identity["name"], "handle": identity["handle"],
+              "did": did, "records": published, "strandUri": res["uri"]}
+    held = {"session": {"did": did, "jwt": jwt, "pds": pds, "handle": identity["handle"]},
+            "strand": stripped_strand, "items": items}
+    return result, held
+
+
+def publish_strand(store, strand_id: str, identity: dict,
+                   media_dir=None) -> dict:
+    return publish_strand_full(store, strand_id, identity, media_dir=media_dir)[0]
 
 
 def unpublish_strand(store, strand_id: str, identity: dict) -> dict:
