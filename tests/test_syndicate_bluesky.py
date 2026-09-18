@@ -93,6 +93,41 @@ def test_more_than_four_images_posts_the_first_four_and_says_how_many_dropped(ca
     assert out["dropped"] == 1
 
 
+def big_blob(n: int, size: int = 1_500_000, mime: str = "image/jpeg") -> dict:
+    return {"$type": "blob", "ref": {"$link": f"bafkrei{n}"}, "mimeType": mime, "size": size}
+
+
+def test_an_oversize_image_is_dropped_and_counted(calls):
+    ref = {"image": big_blob(1)}
+    out = bluesky.post(SESSION, STRAND, [item(ref)], "x")
+    assert "embed" not in calls[0]["body"]["record"]
+    assert out["dropped"] == 1
+
+
+def test_a_non_image_mime_is_dropped_and_counted(calls):
+    ref = {"image": big_blob(1, size=10, mime="application/octet-stream")}
+    out = bluesky.post(SESSION, STRAND, [item(ref)], "x")
+    assert "embed" not in calls[0]["body"]["record"]
+    assert out["dropped"] == 1
+
+
+def test_a_ref_at_exactly_the_max_size_is_kept(calls):
+    ref = {"image": big_blob(1, size=1_000_000)}
+    bluesky.post(SESSION, STRAND, [item(ref)], "x")
+    imgs = calls[0]["body"]["record"]["embed"]["images"]
+    assert [i["image"]["ref"]["$link"] for i in imgs] == ["bafkrei1"]
+
+
+def test_filtered_refs_do_not_use_up_the_four_slots(calls):
+    items = [item({"image": big_blob(1)}, {"image": blob(2)}, {"image": blob(3)}),
+             item({"image": blob(4)}, {"image": blob(5)})]
+    out = bluesky.post(SESSION, STRAND, items, "x")
+    imgs = calls[0]["body"]["record"]["embed"]["images"]
+    assert [i["image"]["ref"]["$link"] for i in imgs] == \
+        [f"bafkrei{n}" for n in (2, 3, 4, 5)]
+    assert out["dropped"] == 1
+
+
 def test_text_at_the_limit_posts_and_one_over_is_refused_before_any_call(calls):
     bluesky.post(SESSION, STRAND, [], "a" * 300)
     with pytest.raises(ValueError, match="300"):

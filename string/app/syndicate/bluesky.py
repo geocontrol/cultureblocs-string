@@ -21,6 +21,8 @@ from .. import publisher
 NAME = "bluesky"
 LIMITS = {"text": 300, "images": 4, "wants_link": False}
 POST = "app.bsky.feed.post"
+# Mirrors app.bsky.embed.images#image.image's maxSize (1000000 bytes).
+MAX_IMAGE_BYTES = 1_000_000
 
 
 def check_text(text) -> None:
@@ -54,7 +56,11 @@ def post(session: dict, strand: dict, items: list[dict], text: str) -> dict:
     """
     check_text(text)
     refs = [ref for body in items for ref in (body.get("images") or [])]
-    kept = refs[:LIMITS["images"]]
+    usable = [ref for ref in refs
+              if str(ref.get("image", {}).get("mimeType", "")).startswith("image/")
+              and isinstance(ref.get("image", {}).get("size"), int)
+              and ref["image"]["size"] <= MAX_IMAGE_BYTES]
+    kept = usable[:LIMITS["images"]]
     record = {"$type": POST, "text": text,
               "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
     if kept:

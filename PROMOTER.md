@@ -96,7 +96,7 @@ must route that text through the strip first.
 ## Known limitations (release one)
 
 - **Media now publishes**: at publish time, each bead's local photos are
-  uploaded as ATProto blobs into a `photos` field (images ≤2 MB; larger
+  uploaded as ATProto blobs into an `images` field (images ≤2 MB; larger
   files are skipped). Unpublish deletes the records and the PDS
   garbage-collects the blobs.
 - **Public visibility is real**: records go through the firehose and are
