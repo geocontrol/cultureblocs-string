@@ -13,7 +13,8 @@ from app.db import Store  # noqa: E402
 STRAND = "com.cultureblocs.strand"
 HELD = {"session": {"did": "did:plc:me", "jwt": "jwt", "pds": "https://pds.example",
                     "handle": "me.example"},
-        "strand": {"title": "A day out"}, "items": []}
+        "strand": {"title": "A day out"}, "items": [],
+        "strandUri": "at://did:plc:me/com.cultureblocs.strand/e328d978"}
 
 
 def fake_adapter(name, limit=300, fail=None):
@@ -40,7 +41,7 @@ def store(tmp_path):
 
 
 def test_available_lists_bluesky_with_its_limits():
-    assert {"name": "bluesky", "limits": {"text": 300, "images": 4, "wants_link": False}} \
+    assert {"name": "bluesky", "limits": {"text": 277, "images": 4, "wants_link": True}} \
         in syndicate.available()
 
 
@@ -157,3 +158,51 @@ def test_the_adapter_is_given_exactly_what_phase_1_held(monkeypatch, store):
     syndicate.run(store, store.rid, ["bluesky"], "hi", HELD)
     assert seen == {"session": HELD["session"], "strand": HELD["strand"],
                     "items": HELD["items"], "text": "hi"}
+
+
+# -- the link back: only destinations that want one are given one -----------
+
+def link_taking_adapter(name, wants_link=True):
+    """An adapter that records the link it was handed."""
+    seen = {}
+
+    def post(session, strand, items, text, link=None):
+        seen["link"] = link
+        return {"id": "1", "url": f"https://{name}.example/1", "dropped": 0}
+    mod = types.SimpleNamespace(
+        NAME=name, LIMITS={"text": 300, "images": 4, "wants_link": wants_link}, post=post)
+    return mod, seen
+
+
+def test_an_adapter_that_wants_a_link_is_handed_the_wall_url(monkeypatch, store):
+    mod, seen = link_taking_adapter("bluesky")
+    monkeypatch.setitem(syndicate.DESTINATIONS, "bluesky", mod)
+    syndicate.run(store, store.rid, ["bluesky"], "hi", HELD)
+    assert seen["link"] == "https://cultureblocs.com/wall/me.example/e328d978"
+
+
+def test_an_adapter_that_wants_no_link_is_handed_none(monkeypatch, store):
+    mod, seen = link_taking_adapter("mastodon", wants_link=False)
+    monkeypatch.setitem(syndicate.DESTINATIONS, "mastodon", mod)
+    syndicate.run(store, store.rid, ["mastodon"], "hi", HELD)
+    assert seen["link"] is None
+
+
+def test_a_held_without_a_strand_uri_hands_no_link(monkeypatch, store):
+    mod, seen = link_taking_adapter("bluesky")
+    monkeypatch.setitem(syndicate.DESTINATIONS, "bluesky", mod)
+    syndicate.run(store, store.rid, ["bluesky"], "hi", {**HELD, "strandUri": None})
+    assert seen["link"] is None
+
+
+def test_an_adapter_with_the_old_four_argument_signature_still_works(monkeypatch, store):
+    """The link is passed as a keyword, so an adapter written before it
+    existed is not broken by it — it simply never sees one."""
+    def post(session, strand, items, text):
+        return {"id": "1", "url": None, "dropped": 0}
+    monkeypatch.setitem(syndicate.DESTINATIONS, "old",
+                        types.SimpleNamespace(NAME="old",
+                                              LIMITS={"text": 300, "wants_link": False},
+                                              post=post))
+    [r] = syndicate.run(store, store.rid, ["old"], "hi", HELD)
+    assert r["status"] == "posted"

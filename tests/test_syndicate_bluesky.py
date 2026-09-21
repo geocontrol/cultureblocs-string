@@ -11,7 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "string"))
 from app import publisher, strip  # noqa: E402
-from app.syndicate import bluesky  # noqa: E402
+from app.syndicate import bluesky, wall  # noqa: E402
 
 SESSION = {"did": "did:plc:me", "jwt": "jwt", "pds": "https://pds.example", "handle": "me.example"}
 STRAND = {"$type": "com.cultureblocs.strand", "createdAt": "2026-09-18T10:00:00Z",
@@ -48,7 +48,9 @@ def calls(monkeypatch):
 
 def test_it_declares_its_name_and_limits():
     assert bluesky.NAME == "bluesky"
-    assert bluesky.LIMITS == {"text": 300, "images": 4, "wants_link": False}
+    # text is the writable amount, not Bluesky's 300: the adapter spends the
+    # rest on the link back (see the link tests at the end of this file).
+    assert bluesky.LIMITS == {"text": 277, "images": 4, "wants_link": True}
 
 
 def test_a_post_is_created_in_the_same_repo_with_the_text_as_written(calls):
@@ -129,16 +131,18 @@ def test_filtered_refs_do_not_use_up_the_four_slots(calls):
 
 
 def test_text_at_the_limit_posts_and_one_over_is_refused_before_any_call(calls):
-    bluesky.post(SESSION, STRAND, [], "a" * 300)
-    with pytest.raises(ValueError, match="300"):
-        bluesky.post(SESSION, STRAND, [], "a" * 301)
+    limit = bluesky.LIMITS["text"]
+    bluesky.post(SESSION, STRAND, [], "a" * limit)
+    with pytest.raises(ValueError, match=str(limit)):
+        bluesky.post(SESSION, STRAND, [], "a" * (limit + 1))
     assert len(calls) == 1
 
 
 def test_text_is_counted_in_code_points_like_the_lexicon_validator(calls):
-    bluesky.post(SESSION, STRAND, [], "🎭" * 300)       # 300 code points, 600 UTF-16 units
+    limit = bluesky.LIMITS["text"]
+    bluesky.post(SESSION, STRAND, [], "🎭" * limit)   # code points, not UTF-16 units
     with pytest.raises(ValueError):
-        bluesky.post(SESSION, STRAND, [], "🎭" * 301)
+        bluesky.post(SESSION, STRAND, [], "🎭" * (limit + 1))
 
 
 @pytest.mark.parametrize("text", ["", "   ", None])
@@ -161,3 +165,82 @@ def test_the_strip_does_not_change():
     with a fixture in tests/fixtures/strip-cases.json, or not at all."""
     assert strip.BEAD_FIELDS == ("createdAt", "kind", "note")
     assert strip.STRAND_FIELDS == ("createdAt", "title", "narrative", "day")
+
+
+# -- the link back to the wall (spec §5.2's "additive when the wall lands") --
+
+WALL_LINK = "https://cultureblocs.com/wall/me.example/e328d978"
+
+
+def test_the_writable_limit_leaves_room_for_the_link():
+    """LIMITS["text"] is what a person may write, not Bluesky's 300: the
+    adapter appends the link itself, and Loom sizes its counter from this."""
+    assert bluesky.LIMITS["wants_link"] is True
+    assert bluesky.LIMITS["text"] == bluesky.POST_MAX - len(bluesky.SUFFIX)
+    assert bluesky.LIMITS["text"] == 277
+    assert len(f"a post{bluesky.SUFFIX}") <= bluesky.POST_MAX
+
+
+def test_the_link_is_appended_once_with_a_facet_over_the_visible_text(calls):
+    bluesky.post(SESSION, STRAND, [], "A day out", link=WALL_LINK)
+    rec = calls[0]["body"]["record"]
+
+    assert rec["text"] == f"A day out{bluesky.SUFFIX}"
+    assert rec["text"].count(bluesky.LINK_DISPLAY) == 1
+    assert WALL_LINK not in rec["text"], "the long url rides in the facet, not the text"
+
+    [facet] = rec["facets"]
+    assert facet["features"] == [{"$type": "app.bsky.richtext.facet#link", "uri": WALL_LINK}]
+    raw = rec["text"].encode("utf-8")
+    start, end = facet["index"]["byteStart"], facet["index"]["byteEnd"]
+    assert raw[start:end].decode("utf-8") == bluesky.LINK_DISPLAY
+
+
+def test_the_facet_range_is_bytes_not_characters(calls):
+    """An emoji is one code point and four utf-8 bytes. A facet indexed in
+    characters would point into the middle of the text here."""
+    bluesky.post(SESSION, STRAND, [], "🎭 a day out", link=WALL_LINK)
+    rec = calls[0]["body"]["record"]
+    [facet] = rec["facets"]
+    raw = rec["text"].encode("utf-8")
+    assert raw[facet["index"]["byteStart"]:facet["index"]["byteEnd"]].decode("utf-8") \
+        == bluesky.LINK_DISPLAY
+    assert facet["index"]["byteStart"] != rec["text"].index(bluesky.LINK_DISPLAY), \
+        "byte offset and character offset differ here, which is the point"
+
+
+def test_text_at_the_writable_limit_plus_the_link_is_exactly_the_post_maximum(calls):
+    text = "a" * bluesky.LIMITS["text"]
+    bluesky.post(SESSION, STRAND, [], text, link=WALL_LINK)
+    assert len(calls[0]["body"]["record"]["text"]) == bluesky.POST_MAX
+
+
+def test_one_character_over_the_writable_limit_is_refused_before_any_call(calls):
+    with pytest.raises(ValueError, match="277"):
+        bluesky.post(SESSION, STRAND, [], "a" * 278, link=WALL_LINK)
+    assert calls == []
+
+
+def test_without_a_link_the_post_is_exactly_what_it_was_before(calls):
+    bluesky.post(SESSION, STRAND, [], "A day out")
+    rec = calls[0]["body"]["record"]
+    assert rec["text"] == "A day out"
+    assert "facets" not in rec
+
+
+def test_the_wall_link_is_built_from_the_handle_and_the_strand_rkey():
+    assert wall.link_for("me.example", "e328d978") == WALL_LINK
+    assert wall.enabled() is True
+
+
+def test_an_unset_wall_base_turns_the_link_off(monkeypatch):
+    monkeypatch.setattr(wall, "BASE", "")
+    assert wall.enabled() is False
+    assert wall.link_for("me.example", "e328d978") is None
+
+
+def test_a_handle_or_rkey_that_needs_encoding_is_encoded():
+    assert wall.link_for("did:plc:me", "a b") == \
+        "https://cultureblocs.com/wall/did%3Aplc%3Ame/a%20b"
+    assert wall.link_for("", "e328d978") is None
+    assert wall.link_for("me.example", "") is None

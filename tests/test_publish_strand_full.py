@@ -98,3 +98,11 @@ def test_a_record_that_is_not_a_strand_holds_nothing_for_phase_2(monkeypatch):
     result, held = publisher.publish_strand_full(store, "w1", IDENTITY)
     assert held is None
     assert result["uri"].startswith("at://")
+
+
+def test_the_published_strand_uri_is_handed_on_for_the_link_back(monkeypatch):
+    """A syndicated post links to the wall, and the wall addresses a strand by
+    its rkey — which only exists once phase 1 has written the record."""
+    store = a_day(monkeypatch)
+    _, held = publisher.publish_strand_full(store, "s1", IDENTITY)
+    assert held["strandUri"] == f"at://{DID}/{publisher.STRAND}/s1"

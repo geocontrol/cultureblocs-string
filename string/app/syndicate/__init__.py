@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import threading
 
-from . import bluesky
+from . import bluesky, wall
 
 DESTINATIONS = {bluesky.NAME: bluesky}
 
@@ -54,9 +54,16 @@ def check(destinations: list[str], text: str | None) -> list[str]:
 
 
 def post(destination: str, *, session: dict, strand: dict, items: list[dict],
-         text: str) -> dict:
-    """-> {"id": str, "url": str | None, "dropped": int}. Raises on failure."""
-    return DESTINATIONS[destination].post(session, strand, items, text)
+         text: str, link: str | None = None) -> dict:
+    """-> {"id": str, "url": str | None, "dropped": int}. Raises on failure.
+
+    `link` is passed as a keyword, so an adapter written before the wall
+    existed keeps working — it simply never sees one.
+    """
+    mod = DESTINATIONS[destination]
+    if link is None or not mod.LIMITS.get("wants_link"):
+        return mod.post(session, strand, items, text)
+    return mod.post(session, strand, items, text, link=link)
 
 
 def run(store, record_id: str, destinations: list[str], text: str,
@@ -77,7 +84,9 @@ def run(store, record_id: str, destinations: list[str], text: str,
                 continue
             try:
                 out = post(dest, session=held["session"], strand=held["strand"],
-                           items=held["items"], text=text)
+                           items=held["items"], text=text,
+                           link=wall.link_for(held["session"].get("handle"),
+                                              wall.rkey_of(held.get("strandUri"))))
                 remote_id = out["id"]
                 remote_url = out.get("url")
                 dropped = out.get("dropped", 0)

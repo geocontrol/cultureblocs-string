@@ -213,7 +213,10 @@ def publish_strand_full(store, strand_id: str, identity: dict,
     result = {"identity": identity["name"], "handle": identity["handle"],
               "did": did, "records": published, "strandUri": res["uri"]}
     held = {"session": {"did": did, "jwt": jwt, "pds": pds, "handle": identity["handle"]},
-            "strand": stripped_strand, "items": items}
+            "strand": stripped_strand, "items": items,
+            # Where the strand now lives: the wall addresses it by this rkey,
+            # which only exists once the record above is written.
+            "strandUri": res["uri"]}
     return result, held
 
 
