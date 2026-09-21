@@ -130,7 +130,10 @@ export async function fetchActorStrands(actor, {pds=null, limit=0, fetchFn=fetch
       }catch(e){ return null; }
     }))).filter(Boolean)
        .sort((a,b)=>(a.createdAt||'') < (b.createdAt||'') ? -1 : 1);
-    bundles.push({strand: s.value, items, blobBase});
+    // The uri and cid travel with the record: a renderer that wants to link to
+    // one strand (the wall, cultureblocs.com/wall/<handle>/<rkey>) cannot
+    // rebuild them from the body. This element ignores both.
+    bundles.push({uri: s.uri, cid: s.cid, strand: s.value, items, blobBase});
   }
   return bundles;
 }
