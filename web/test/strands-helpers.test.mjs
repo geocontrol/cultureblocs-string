@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { imageModel, beadImages, blocksHtml, esc, narrativeHtml } from '../cultureblocs-strands.js';
+import { imageModel, beadImages, blocksHtml, esc, fetchActorStrands, narrativeHtml } from '../cultureblocs-strands.js';
 
 test('imageModel reads an imageRef', () => {
   const m = imageModel({
@@ -137,4 +137,32 @@ test('narrativeHtml renders nothing when a strand has no narrative', () => {
   assert.equal(narrativeHtml({}), '');
   assert.equal(narrativeHtml({ narrative: '' }), '');
   assert.equal(narrativeHtml(null), '');
+});
+
+/* A renderer cannot rebuild a strand's address from its body: the uri and cid
+ * live on the listRecords entry, not inside the record. The wall
+ * (cultureblocs.com/wall/<handle>/<rkey>) gives that address somewhere to
+ * point, so the bundle carries it. */
+test('each bundle keeps the strand\u2019s uri and cid, so a renderer can link to it', async () => {
+  const strandRec = {
+    uri: 'at://did:plc:abc/com.cultureblocs.strand/e328d978',
+    cid: 'bafyStrand',
+    value: { $type: 'com.cultureblocs.strand', createdAt: '2026-09-18T12:52:57Z',
+             title: 'At the National Gallery', items: [] },
+  };
+  const fetchFn = async (url) => ({
+    ok: true,
+    json: async () => {
+      if (url.includes('resolveHandle')) return { did: 'did:plc:abc' };
+      if (url.includes('plc.directory')) return { service: [{ id: '#atproto_pds', serviceEndpoint: 'https://pds.example' }] };
+      return { records: [strandRec] };
+    },
+  });
+
+  const [bundle] = await fetchActorStrands('geocontrol.bsky.social', { fetchFn });
+
+  assert.equal(bundle.uri, strandRec.uri);
+  assert.equal(bundle.cid, strandRec.cid);
+  assert.equal(bundle.strand.title, 'At the National Gallery', 'and everything it already carried');
+  assert.ok(bundle.blobBase.includes('com.atproto.sync.getBlob'));
 });
