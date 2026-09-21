@@ -18,9 +18,11 @@ def api(client, monkeypatch):
     """The client, a held identity, a strand with one bead, and a recorded network."""
     import app.main as main
     calls = []
+    bodies = []
 
     def fake_xrpc(_pds, method, *, body=None, token=None):
         calls.append(method)
+        bodies.append(body or {})
         if method == "com.atproto.server.createSession":
             return {"did": "did:plc:me", "accessJwt": "jwt"}
         if method == "com.atproto.repo.putRecord":
@@ -40,6 +42,7 @@ def api(client, monkeypatch):
         "body": {"$type": STRAND, "createdAt": DAY, "title": "A day out",
                  "items": [{"uri": f"spine://records/{bead['id']}"}]}}]}).json()["results"]
     client.calls = calls
+    client.bodies = bodies
     client.main = main
     client.strand = strand["id"]
     client.bead = bead["id"]
@@ -52,7 +55,9 @@ def publish(api, **extra):
 
 def test_destinations_are_listed_with_their_limits(api):
     body = api.get("/destinations").json()
-    assert {"name": "bluesky", "limits": {"text": 300, "images": 4, "wants_link": False}} \
+    # 277, not 300: what Loom's counter should allow, with the rest kept for
+    # the link back to the wall.
+    assert {"name": "bluesky", "limits": {"text": 277, "images": 4, "wants_link": True}} \
         in body["destinations"]
 
 
@@ -121,3 +126,19 @@ def test_destinations_on_a_record_that_is_not_a_strand_are_refused(api):
     assert resp.status_code == 422
     assert "strand" in resp.json()["detail"]
     assert api.calls == []
+
+
+def test_the_post_links_back_to_the_wall_entry_for_this_strand(api):
+    """End to end: phase 1 writes the strand, phase 2 posts, and the post
+    carries a facet pointing at the wall's address for that very rkey."""
+    publish(api, destinations=["bluesky"], postText="A day out")
+
+    [post] = [c for c in api.bodies if c.get("collection") == "app.bsky.feed.post"]
+    rec = post["record"]
+    assert rec["text"].endswith("cultureblocs.com/wall")
+    [facet] = rec["facets"]
+    assert facet["features"][0]["uri"] == \
+        f"https://cultureblocs.com/wall/me.example/{api.strand}"
+    raw = rec["text"].encode("utf-8")
+    assert raw[facet["index"]["byteStart"]:facet["index"]["byteEnd"]].decode("utf-8") \
+        == "cultureblocs.com/wall"

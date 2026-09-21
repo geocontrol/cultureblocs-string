@@ -85,8 +85,15 @@ Unpublishing a strand does not delete its posts.
 **Bluesky** writes an `app.bsky.feed.post` into the same repo, under the
 session the publish already opened, with up to four of the images phase 1
 already uploaded — reused, not re-uploaded. The text is exactly what was
-written, at most 300 characters (counted in code points, like the lexicon
-validator). No link back yet: there is no per-strand web page to point at.
+written, and a **link back to the wall** is appended: `cultureblocs.com/wall`
+as the visible text, with the strand's own address
+(`<wall>/<handle>/<rkey>`) carried in a richtext facet, so a uuid does not
+eat ninety of the post's characters.
+
+That is why the destination reports **277** characters rather than Bluesky's
+300: 277 is what you may write, and the adapter spends the rest on the link.
+`WALL_BASE_URL` sets the wall (default `https://cultureblocs.com/wall`);
+setting it empty turns the link off, and the whole 300 is yours again.
 
 **Adding a destination** is one module in `string/app/syndicate/` exposing
 `NAME`, `LIMITS` and `post(session, strand, items, text)`, plus one line in
