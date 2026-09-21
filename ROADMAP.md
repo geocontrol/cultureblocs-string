@@ -4,11 +4,15 @@ The shape of where CultureBlocs is going, by workstream. Status honest,
 dependencies named. Building in public: if something here interests you,
 say so — the meetup is the place, or open an issue.
 
-*Last updated: July 2026. Done so far, for context: the String (record
-store, timeline), the totem pipeline, the scrobbler, the
+*Last updated: September 2026. Done so far, for context: the String
+(record store, timeline), the totem pipeline, the scrobbler, the
 `com.cultureblocs.*` lexicons published as a resolvable ATProto schema
 authority, strand publishing under held identities, and two sites
-rendering strands live from the Atmosphere.*
+rendering strands live from the Atmosphere. Since July: **Loom**, the
+local-first desk where the string is written — a bead or strand written
+whole in one form, publishing from the desk, the totem's beads arriving
+over USB, and a published strand syndicating to Bluesky. Studio is
+retired; Loom replaced it.*
 
 ## Framing: the Art Life
 
@@ -39,7 +43,7 @@ Three scope separations, deliberately held:
 ## 1 · The String (core, near-term)
 
 - [x] **Media blobs in the promoter** — beads' local photos upload as
-  ATProto blobs (`photos` field) at publish time; the embed component
+  ATProto blobs (`images` field) at publish time; the embed component
   renders them live via `getBlob`. Context links to Instagram/FB/
   Flickr etc. ride the existing `links[]` field — the timeline editor
   now takes many links, one per line.
@@ -51,6 +55,26 @@ Three scope separations, deliberately held:
   proposals are revisable until kept; the change feed gained HLC stamps,
   device and actor; `PATCH` honours `If-Match`. The timeline gained the
   **keep** button the README always described.
+- [x] **Loom itself** — the desk is built and in use (loom PRs #1–#8): a
+  bead or strand written whole in one form with the String column always
+  visible, Send carrying every change, publishing from the desk through
+  one swappable transport, the totem's beads arriving over USB as
+  proposals, and a published strand syndicating to Bluesky. The String
+  side of that last one is `string/app/syndicate/` — one module per
+  destination behind a registry ([PROMOTER.md](PROMOTER.md)).
+- [ ] **A wall of published blocs** — a paged, date-ordered public page of
+  one actor's published strands. Not Loom's: a read surface. It is also
+  what Bluesky posts and any Instagram caption need to link back to, so
+  it gates the rest of syndication. *Next.* (`cultureblocs-loom`
+  `docs/backlog.md` item 3.)
+- [ ] **Extraction from prose** — works, people and events proposed from
+  what you write, designed in `LOOM.md` §9 and unbuilt. §9.6 forbids
+  remote extraction, so choosing the model amends the design rather than
+  implementing it. (`docs/backlog.md` item 5.)
+- [ ] **Instagram, Mastodon, Threads** — each one module on the
+  syndication seam. Instagram wants a Business or Creator account, a
+  linked Facebook app, and a link it cannot make clickable in a caption.
+  *Gated on the wall.*
 - [ ] **Enrichment worker** — consume `GET /changes`, cluster each
   day's beads by time/place gaps into *draft* strands to accept or
   discard. Hand-made strands are the calibration set. *Independent.*
@@ -79,6 +103,12 @@ surface writes the same records through the same offline-queue
 pattern; none of them is a feed.
 
 ### The Totem (hardware, firmware conversation's queue)
+- [x] **Beads reach the String** — the totem has no network path by
+  construction (ESP-NOW only, WiFi down, for peer mint), so USB is the
+  way in: Loom's Feeds surface talks Web Serial straight to the device
+  and lands its beads as proposals on the days they belong to. No
+  firmware change was needed, and Studio — the old browser-serial
+  bridge — is retired.
 - [ ] **mintId** — 128-bit, SHA-256 of the sorted nonce pair.
   Keystone: dedupe, the encounter join key, pairing seed. String
   support already live.
@@ -261,7 +291,10 @@ Swift capture-queue port wait ready for that version.
 
 ---
 
-**The suggested thread through it all:** media blobs → meetup
-execution → pocket-totem PWA (people to hand it to now exist) →
-mintId & encounters as firmware lands → CreativeID Phase 0 with the
-meetup's answers in hand → the AppView when publisher #2 appears.
+**The suggested thread through it all:** Loom and its syndication are
+built, so the thread now runs → **the wall** (the one missing public
+surface, and the link back that Bluesky posts and Instagram captions
+both need) → **extraction from prose**, once the model question in §9.6
+is settled → further syndication adapters behind the seam → mintId &
+encounters as firmware lands → CreativeID's first real loop → the
+AppView when publisher #2 appears.
