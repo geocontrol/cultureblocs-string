@@ -12,6 +12,7 @@ turns the link off, and every adapter then posts exactly as it did before.
 from __future__ import annotations
 
 import os
+import re
 from urllib.parse import quote
 
 BASE = (os.environ.get("WALL_BASE_URL", "https://cultureblocs.com/wall") or "").rstrip("/")
@@ -19,6 +20,19 @@ BASE = (os.environ.get("WALL_BASE_URL", "https://cultureblocs.com/wall") or "").
 
 def enabled() -> bool:
     return bool(BASE)
+
+
+def display() -> str:
+    """The wall as it is shown to a reader: host and path, no scheme.
+
+    A post shows this and links to the full address, so it must be derived
+    from the same BASE rather than written out again — visible text naming
+    one domain while the link goes to another is what a spoofed link looks
+    like, and nothing would catch it.
+    """
+    if not enabled():
+        return ""
+    return re.sub(r"^[a-z][a-z0-9+.-]*://", "", BASE, flags=re.I).rstrip("/")
 
 
 def link_for(actor: str, rkey: str) -> str | None:

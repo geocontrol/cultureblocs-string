@@ -228,6 +228,28 @@ def test_without_a_link_the_post_is_exactly_what_it_was_before(calls):
     assert "facets" not in rec
 
 
+def test_what_the_post_shows_is_the_wall_it_actually_links_to():
+    """A visible link naming one domain and pointing at another is the shape
+    of a spoofed link. The display text is derived from the configured wall,
+    so the two cannot drift."""
+    assert bluesky.LINK_DISPLAY == wall.display()
+    assert wall.display() == "cultureblocs.com/wall"
+    assert bluesky.LINK_DISPLAY in wall.BASE
+
+
+def test_a_wall_somewhere_else_is_shown_as_itself(monkeypatch):
+    monkeypatch.setattr(wall, "BASE", "https://blocs.example.org/w/")
+    assert wall.display() == "blocs.example.org/w"
+    monkeypatch.setattr(wall, "BASE", "http://brick.local:8106/wall")
+    assert wall.display() == "brick.local:8106/wall"
+    monkeypatch.setattr(wall, "BASE", "")
+    assert wall.display() == ""
+
+
+def test_the_writable_limit_is_the_post_maximum_less_what_the_link_costs():
+    assert bluesky.LIMITS["text"] + len(bluesky.SUFFIX) == bluesky.POST_MAX
+
+
 def test_the_wall_link_is_built_from_the_handle_and_the_strand_rkey():
     assert wall.link_for("me.example", "e328d978") == WALL_LINK
     assert wall.enabled() is True

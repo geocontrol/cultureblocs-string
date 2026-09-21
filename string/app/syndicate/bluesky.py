@@ -26,15 +26,24 @@ from . import wall
 NAME = "bluesky"
 POST = "app.bsky.feed.post"
 POST_MAX = 300                      # Bluesky's own limit on a post's text
-LINK_DISPLAY = "cultureblocs.com/wall"
-SUFFIX = f"\n\n{LINK_DISPLAY}"      # what an appended link costs
+# What a reader sees, derived from the wall this String is pointed at so the
+# text and the facet's target can never name different places.
+LINK_DISPLAY = wall.display()
+SUFFIX = f"\n\n{LINK_DISPLAY}" if LINK_DISPLAY else ""
 LINK = "app.bsky.richtext.facet#link"
-# What a person may write: the adapter spends the rest on the link itself, so
-# Loom's counter (which reads this) is right without knowing anything about
-# facets. With no wall configured nothing is appended and the whole post is
-# theirs.
-LIMITS = {"text": POST_MAX - (len(SUFFIX) if wall.enabled() else 0),
-          "images": 4, "wants_link": True}
+LIMITS = {
+    # NOT Bluesky's 300: this is what a person may WRITE. The adapter spends
+    # the remainder on the link back it appends, so Loom's counter (which
+    # reads this number and nothing else) is right without knowing anything
+    # about facets. With no wall configured nothing is appended and the whole
+    # post is theirs.
+    "text": POST_MAX - len(SUFFIX),
+    "images": 4,
+    "wants_link": True,
+}
+# The invariant the arithmetic above rests on, checked once at import rather
+# than only in a test: a post is the text plus the suffix, and that must fit.
+assert LIMITS["text"] + len(SUFFIX) == POST_MAX
 # Mirrors app.bsky.embed.images#image.image's maxSize (1000000 bytes).
 MAX_IMAGE_BYTES = 1_000_000
 
