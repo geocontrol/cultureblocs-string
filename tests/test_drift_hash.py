@@ -89,7 +89,7 @@ class FakeStore:
         return True
 
 
-def test_publish_strand_stores_the_drift_hash_even_when_photos_upload(tmp_path: Path) -> None:
+def test_publish_strand_stores_the_drift_hash_even_when_photos_upload(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "aaa.jpg").write_bytes(b"jpeg-bytes")
     body = bead()
     store = FakeStore({
@@ -106,10 +106,12 @@ def test_publish_strand_stores_the_drift_hash_even_when_photos_upload(tmp_path: 
         sent[body["rkey"]] = body["record"]
         return {"uri": f"at://did:plc:fake/{body['collection']}/{body['rkey']}", "cid": "bafycid"}
 
-    publisher._login = lambda _i: ("did:plc:fake", "jwt", "https://pds.example")
-    publisher._xrpc = fake_xrpc
-    publisher._upload_blob = lambda _p, _j, data, mime: {"$type": "blob", "ref": {"$link": "bafkblob"},
-                                                         "mimeType": mime, "size": len(data)}
+    monkeypatch.setattr(publisher, "_login",
+                        lambda _i: ("did:plc:fake", "jwt", "https://pds.example"))
+    monkeypatch.setattr(publisher, "_xrpc", fake_xrpc)
+    monkeypatch.setattr(publisher, "_upload_blob",
+                        lambda _p, _j, data, mime: {"$type": "blob", "ref": {"$link": "bafkblob"},
+                                                    "mimeType": mime, "size": len(data)})
     publisher.publish_strand(store, "s1", {"name": "t", "handle": "t.example"}, media_dir=tmp_path)
 
     assert sent["b1"]["images"], "the photo must actually publish for this test to mean anything"

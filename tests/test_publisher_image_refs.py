@@ -1,8 +1,14 @@
 """The promoter maps mediaRef -> imageRef, carrying alt text and dimensions.
-Uploads are stubbed: this is a field-mapping test, not a network test."""
+Uploads are stubbed: this is a field-mapping test, not a network test.
+
+The stub goes on through `monkeypatch`, so the real upload is back in place
+for whatever runs next (tests/test_test_isolation.py checks that it is).
+"""
 import sys
 import tempfile
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "string"))
@@ -14,6 +20,12 @@ def fake_blob(_pds, _jwt, data, mime):
             "mimeType": mime, "size": len(data)}
 
 
+@pytest.fixture(autouse=True)
+def stub_upload(monkeypatch):
+    """Every test in this file uploads nothing."""
+    monkeypatch.setattr(publisher, "_upload_blob", fake_blob)
+
+
 def with_media_dir(files: dict):
     """Create a temp media dir containing `files` (name -> bytes)."""
     d = tempfile.mkdtemp()
@@ -23,7 +35,6 @@ def with_media_dir(files: dict):
 
 
 def test_alt_and_aspect_ratio_survive_publication():
-    publisher._upload_blob = fake_blob
     media_dir = with_media_dir({"abc.jpg": b"x" * 10})
     body = {"media": [{
         "uri": "http://brick:8100/media/abc.jpg",
@@ -40,7 +51,6 @@ def test_alt_and_aspect_ratio_survive_publication():
 
 def test_absent_alt_is_omitted_not_emptied():
     """An empty alt string is a claim that the image is decorative. Absence is not."""
-    publisher._upload_blob = fake_blob
     media_dir = with_media_dir({"abc.jpg": b"x" * 10})
     body = {"media": [{"uri": "http://brick:8100/media/abc.jpg", "mime": "image/jpeg"}]}
     refs = publisher._image_refs(body, media_dir, "https://pds.example", "jwt")
@@ -49,7 +59,6 @@ def test_absent_alt_is_omitted_not_emptied():
 
 
 def test_blank_alt_is_omitted():
-    publisher._upload_blob = fake_blob
     media_dir = with_media_dir({"abc.jpg": b"x" * 10})
     body = {"media": [{"uri": "http://brick:8100/media/abc.jpg", "alt": "   "}]}
     refs = publisher._image_refs(body, media_dir, "https://pds.example", "jwt")
@@ -57,7 +66,6 @@ def test_blank_alt_is_omitted():
 
 
 def test_malformed_aspect_ratio_is_dropped_not_published():
-    publisher._upload_blob = fake_blob
     media_dir = with_media_dir({"abc.jpg": b"x" * 10})
     for bad in ({"width": 0, "height": 10}, {"width": "1600", "height": 1067},
                 {"width": 1600}, {"width": True, "height": True}, "1600x1067", None):
@@ -67,7 +75,6 @@ def test_malformed_aspect_ratio_is_dropped_not_published():
 
 
 def test_missing_and_oversized_files_are_still_skipped():
-    publisher._upload_blob = fake_blob
     media_dir = with_media_dir({"big.jpg": b"x" * 2_000_001, "ok.jpg": b"x" * 10})
     body = {"media": [
         {"uri": "http://brick:8100/media/gone.jpg"},
@@ -99,11 +106,4 @@ def test_strip_bead_without_images_omits_the_field():
 
 
 if __name__ == "__main__":
-    test_alt_and_aspect_ratio_survive_publication()
-    test_absent_alt_is_omitted_not_emptied()
-    test_blank_alt_is_omitted()
-    test_malformed_aspect_ratio_is_dropped_not_published()
-    test_missing_and_oversized_files_are_still_skipped()
-    test_strip_bead_emits_images_not_photos()
-    test_strip_bead_without_images_omits_the_field()
-    print("OK: publisher imageRef mapping tests passed")
+    print("run with pytest: the upload stub is an autouse fixture")

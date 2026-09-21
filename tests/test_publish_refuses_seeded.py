@@ -1,9 +1,16 @@
 """Seeded fair data (sourceApp: seed-*, or tagged seed:artworld) must never
 reach the publish path. Network calls are stubbed: this proves the refusal
 happens before any network call is made, not just that a real PDS would
-reject it."""
+reject it.
+
+The stubs go on through `monkeypatch`, so pytest puts the real functions back
+afterwards. A fake left on the module leaks into every test that runs later,
+where the failure to fear is a false pass — see tests/test_test_isolation.py.
+"""
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "string"))
@@ -44,6 +51,13 @@ def fake_xrpc(_pds, method, *, body=None, token=None):
     raise AssertionError(f"unexpected xrpc call: {method}")
 
 
+@pytest.fixture
+def offline(monkeypatch):
+    """The publisher's network, stubbed for one test and restored after it."""
+    monkeypatch.setattr(publisher, "_login", fake_login)
+    monkeypatch.setattr(publisher, "_xrpc", fake_xrpc)
+
+
 def seeded_by_source_app():
     return {
         "id": "rec1", "type": "com.cultureblocs.venue.lineup",
@@ -74,9 +88,7 @@ def ordinary_record():
     }
 
 
-def test_publish_record_refuses_a_record_with_seed_source_app():
-    publisher._login = fake_login
-    publisher._xrpc = fake_xrpc
+def test_publish_record_refuses_a_record_with_seed_source_app(offline):
     store = FakeStore({"rec1": seeded_by_source_app()})
     try:
         publisher.publish_record(store, "rec1", IDENTITY)
@@ -86,9 +98,7 @@ def test_publish_record_refuses_a_record_with_seed_source_app():
     assert store.records["rec1"].get("publishedUri") is None
 
 
-def test_publish_record_refuses_a_record_tagged_seed_artworld():
-    publisher._login = fake_login
-    publisher._xrpc = fake_xrpc
+def test_publish_record_refuses_a_record_tagged_seed_artworld(offline):
     store = FakeStore({"rec2": seeded_by_tag()})
     try:
         publisher.publish_record(store, "rec2", IDENTITY)
@@ -98,20 +108,16 @@ def test_publish_record_refuses_a_record_tagged_seed_artworld():
     assert store.records["rec2"].get("publishedUri") is None
 
 
-def test_publish_record_still_publishes_an_ordinary_record_of_the_same_type():
+def test_publish_record_still_publishes_an_ordinary_record_of_the_same_type(offline):
     """The guard must not become a blanket refusal of venue.lineup — only
     records that are actually seeded."""
-    publisher._login = fake_login
-    publisher._xrpc = fake_xrpc
     store = FakeStore({"rec3": ordinary_record()})
     result = publisher.publish_record(store, "rec3", IDENTITY)
     assert result["uri"] == "at://did:plc:fake/collection/rkey"
     assert store.records["rec3"]["publishedUri"] == "at://did:plc:fake/collection/rkey"
 
 
-def test_publish_strand_refuses_a_seeded_bead_in_its_item_list():
-    publisher._login = fake_login
-    publisher._xrpc = fake_xrpc
+def test_publish_strand_refuses_a_seeded_bead_in_its_item_list(offline):
     bead = {
         "id": "bead1", "type": "com.cultureblocs.bead",
         "sourceApp": "seed-frieze", "publishedUri": None,
@@ -133,8 +139,4 @@ def test_publish_strand_refuses_a_seeded_bead_in_its_item_list():
 
 
 if __name__ == "__main__":
-    test_publish_record_refuses_a_record_with_seed_source_app()
-    test_publish_record_refuses_a_record_tagged_seed_artworld()
-    test_publish_record_still_publishes_an_ordinary_record_of_the_same_type()
-    test_publish_strand_refuses_a_seeded_bead_in_its_item_list()
-    print("OK: publish refuses seeded data")
+    print("run with pytest: these tests take the `offline` fixture")
