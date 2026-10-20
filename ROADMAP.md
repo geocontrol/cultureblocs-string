@@ -205,6 +205,20 @@ stops there.
   `creative.work`, `creative.connection`, plus `creatorDid` on
   `workRef` and a shared `externalId` type. CLI: `scripts/creative.py`.
   Design notes: [CREATIVE-AND-VENUE.md](CREATIVE-AND-VENUE.md).
+- [x] **Authoring and directory tools** (Oct 2026): [CreativeID
+  Studio](https://github.com/geocontrol/creativeid-studio) — local-first,
+  any practice, several personas, publishes `creative.profile` / `.work`
+  / `.connection` to a PDS (validated against these lexicons), Solid or
+  `/.well-known/creativeid.jsonld`; private details never leave the
+  machine; one persona per account. [CreativeID
+  Aggregator](https://github.com/geocontrol/creativeid-aggregator) —
+  indexes all three routes, listens to Jetstream for the creative
+  collections, and computes the closed loops (peer, and work-with-CID
+  including "changed since confirmed"). Shown working end to end
+  against the studio's sandbox PDS; the first *real* loop is still open
+  below.
+- [x] **`curated`** added to `creative.connection`'s advisory
+  relationships (the curator's side of an exhibition).
 - [ ] **Auracles** (successor to the Creative Passport) — conversation
   under way. The join is `externalIds` scheme `auracle`, plus a
   reciprocal link if they expose a DID, so verification computes from a

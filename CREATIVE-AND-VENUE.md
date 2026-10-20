@@ -155,6 +155,20 @@ You host the String; the venue owns its identity and its records.
    their records are theirs, and that account portability means they can
    move the identity elsewhere without losing anything published.
 
+## Tools that write and read these records
+
+- **CreativeID Studio** (github.com/geocontrol/creativeid-studio): a
+  local-first app for writing a persona — profile, works, connections —
+  and publishing it as `creative.profile` / `.work` / `.connection`
+  (or as JSON-LD / Turtle for a website or Solid Pod). It vendors these
+  lexicons and validates every record against them before publishing;
+  change them here, then run `npm run vendor-lexicons` there.
+- **CreativeID Aggregator** (github.com/geocontrol/creativeid-aggregator):
+  indexes those records and computes the closed loops described above,
+  reported as plain sentences rather than badges. The Jetstream
+  "counting" thread below is the same listener, scoped to the creative
+  collections.
+
 ## Open threads
 
 - **Auracles**: the join is `externalIds` with scheme `auracle`, plus —
