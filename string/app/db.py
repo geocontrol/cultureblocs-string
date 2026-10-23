@@ -114,6 +114,7 @@ STATES = ("proposal", "kept", "draft", "published", "edited")
 POST_MIGRATION_SCHEMA = """
 CREATE INDEX IF NOT EXISTS idx_records_state ON records(state);
 CREATE INDEX IF NOT EXISTS idx_changes_hlc ON changes(hlc);
+CREATE INDEX IF NOT EXISTS idx_records_published ON records(published_uri);
 """
 
 
@@ -442,6 +443,19 @@ class Store:
             cur = self.conn.execute("SELECT * FROM records WHERE id=?", (rid,))
             row = cur.fetchone()
             return self._with_syndications(self._row(row)) if row else None
+
+    def by_published_uri(self, uri: str) -> dict | None:
+        """The record whose public twin is `uri`, if the String holds one."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM records WHERE published_uri=? LIMIT 1", (uri,)).fetchone()
+            return self._row(row) if row else None
+
+    def by_dedupe_key(self, key: str) -> dict | None:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM records WHERE dedupe_key=?", (key,)).fetchone()
+            return self._row(row) if row else None
 
     def query(self, day: str | None = None, rtype: str | None = None,
               source_app: str | None = None, state: str | None = None,

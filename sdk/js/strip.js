@@ -136,16 +136,34 @@ function common(body, out) {
   return out;
 }
 
+const STRONG_REF = 'com.cultureblocs.defs#strongRef';
+
+/* The public form of a bead's `subject`, or null. A place publishes as its
+ * name alone; a strongRef (the published event a bead belongs to) as its
+ * at:// uri and cid, because it points at a record that is already public.
+ * Matches strip.py strip_subject. */
+export function stripSubject(subject) {
+  if (!isObject(subject)) return null;
+  if (str(subject.uri) && subject.uri.startsWith('at://')) {
+    const out = { $type: STRONG_REF, uri: subject.uri };
+    if (str(subject.cid)) out.cid = subject.cid;
+    return out;
+  }
+  if (str(subject.name)) return { name: subject.name };
+  return null;
+}
+
 /* A bead or annotation, as it publishes inside a strand.
  *
- * `subject` is reduced to its name and nothing else: the whole point is that
- * "Tate Modern" publishes while the coordinates that would place you in it
- * do not. A subject with no name drops entirely rather than publishing an
- * empty husk. `images` are imageRefs the caller has already uploaded. */
+ * `subject` goes through stripSubject: a place is reduced to its name (the
+ * whole point is that "Tate Modern" publishes while the coordinates that
+ * would place you in it do not), a strongRef to a public record keeps its
+ * uri and cid, and anything else drops rather than publishing an empty husk. `images` are imageRefs the caller has already uploaded. */
 export function stripBead(body, { images = null } = {}) {
   const out = { $type: requireType(body) };
   for (const k of BEAD_KEEP) if (str(body[k])) out[k] = body[k];
-  if (isObject(body.subject) && str(body.subject.name)) out.subject = { name: body.subject.name };
+  const subject = stripSubject(body.subject);
+  if (subject !== null) out.subject = subject;
   if (body.$type === ANNOTATION) {
     const work = stripWorkRef(body.work);
     if (work !== null) out.work = work;

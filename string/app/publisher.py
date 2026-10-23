@@ -112,6 +112,24 @@ def _image_refs(rec_body: dict, media_dir, pds: str, jwt: str) -> list:
     return refs
 
 
+def _born_public_images(rec: dict, did: str) -> list:
+    """The imageRefs a born-public bead already carries, when republishing it.
+
+    A bead imported from the network (POST /import/pds) has no local `media`:
+    its photos exist only as blobs in the repo it came from, held in its body
+    as `images`. Without this a republish after an edit would write the bead
+    back with no photos. The refs are only reused in the repo that holds the
+    blobs — the one its public twin lives in — because a blob ref means
+    nothing in any other.
+    """
+    uri = rec.get("publishedUri") or ""
+    if not uri.startswith(f"at://{did}/"):
+        return []
+    imgs = (rec.get("body") or {}).get("images")
+    return [i for i in imgs if isinstance(i, dict) and isinstance(i.get("image"), dict)] \
+        if isinstance(imgs, list) else []
+
+
 PUBLIC_TYPES = ("com.cultureblocs.creative.profile", "com.cultureblocs.creative.work",
                 "com.cultureblocs.creative.connection", "com.cultureblocs.venue.profile",
                 "com.cultureblocs.venue.lineup", "com.cultureblocs.venue.listing",
@@ -195,7 +213,8 @@ def publish_strand_full(store, strand_id: str, identity: dict,
         if rec is None or rec["type"] not in BEAD_TYPES:
             continue
         _refuse_if_seeded(rec)
-        images = _image_refs(rec["body"], media_dir, pds, jwt)
+        images = (_image_refs(rec["body"], media_dir, pds, jwt)
+                  or _born_public_images(rec, did))
         stripped = strip_bead(rec["body"], images=images)
         res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
             "repo": did, "collection": rec["type"],

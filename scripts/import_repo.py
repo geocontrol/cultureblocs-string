@@ -10,6 +10,13 @@ edit updates the same public record rather than making a second one.
     python scripts/import_repo.py --actor you.bsky.social
     python scripts/import_repo.py --actor you.bsky.social --dry-run
     python scripts/import_repo.py --actor you.bsky.social --since 2026-08-01
+    python scripts/import_repo.py --identity mark            # beads + annotations, via the String
+
+For beads and annotations prefer `--identity`: it asks the String to do the
+import (POST /import/pds, string/app/pds_import.py), which also recognises
+beads the String published itself — this script's own path cannot, and
+would hold a second copy of each — refreshes copies edited on the network,
+and reports conflicts. The `--actor` path stays for the other collections.
 
 Imported records keep their public identity: dedupeKey is the at:// URI
 (so re-running imports nothing twice) and publishedUri/publishedHash are
@@ -65,9 +72,30 @@ def content_hash(obj: dict) -> str:
         json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def via_string(args) -> None:
+    headers = {"Content-Type": "application/json"}
+    if args.token:
+        headers["Authorization"] = f"Bearer {args.token}"
+    req = urllib.request.Request(
+        args.string.rstrip("/") + "/import/pds", method="POST", headers=headers,
+        data=json.dumps({"identity": args.identity, "since": args.since,
+                         "dryRun": args.dry_run}).encode())
+    with urllib.request.urlopen(req, timeout=300) as r:
+        out = json.loads(r.read())
+    print(f"{args.identity} -> {out['did']}\n  pds: {out['pds']}")
+    for k, v in out["counts"].items():
+        if v:
+            print(f"  {k}: {v}")
+    for c in out.get("conflicts", []):
+        print(f"  conflict {c['uri']} (String record {c['id']})")
+    for i in out.get("invalid", []):
+        print(f"  invalid {i['uri']}: {i['problems']}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--actor", required=True, help="handle or DID")
+    p.add_argument("--actor", help="handle or DID")
+    p.add_argument("--identity", help="a held identity: the String imports its beads and annotations")
     p.add_argument("--since", help="only records createdAt >= this (ISO date)")
     p.add_argument("--collections", help="comma separated; default all ours")
     p.add_argument("--dry-run", action="store_true")
@@ -77,6 +105,10 @@ def main() -> None:
     p.add_argument("--token", default=os.environ.get("STRING_TOKEN")
                    or os.environ.get("SPINE_TOKEN"))
     args = p.parse_args()
+    if args.identity:
+        return via_string(args)
+    if not args.actor:
+        p.error("one of --actor or --identity is required")
 
     did, pds = resolve(args.actor)
     print(f"{args.actor} -> {did}\n  pds: {pds}")

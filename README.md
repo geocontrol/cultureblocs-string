@@ -129,11 +129,21 @@ a repo (`<cultureblocs-strands actor="handle">`) or from a baked export
 
 ## The round trip: records that were born public
 
-A bead minted on a phone and published to your own repository has no
-private original — it is born public. Bring it home to edit it:
+A bead minted on a phone, or written by the "I went" composer on
+cultureblocs.com, goes straight to your own repository and has no private
+original — it is born public. Bring it home to edit it, from Loom
+(**settings → pull from the network**), or:
 
-    python scripts/import_repo.py --actor you.bsky.social --dry-run
-    python scripts/import_repo.py --actor you.bsky.social
+    curl -X POST localhost:8100/import/pds -d '{"identity":"mark","dryRun":true}' \
+         -H 'Content-Type: application/json'
+    python scripts/import_repo.py --identity mark            # the same, from a shell
+
+`POST /import/pds` reads the identity's beads and annotations publicly
+(it never logs in), skips the ones the String published itself, holds the
+rest as `kept` and published, refreshes a held copy that was edited on the
+network if it has not been edited here since, and reports one edited on
+both sides as a conflict for you to settle. Strands are counted, not yet
+imported. `import_repo.py --actor` remains for the other collections.
 
 Imported records keep their public identity (`dedupeKey` is the at:// URI,
 so re-running imports nothing twice) and remember their published twin.

@@ -13,6 +13,7 @@ Interfaces:
   GET   /lexicons         the loaded schema set
   GET   /destinations     where a published strand can also be posted
   POST  /publish/{id}     publish a strand; optionally syndicate it too
+  POST  /import/pds       bring born-public beads home from an identity's repo
   GET   /health
 
 Auth: if SPINE_TOKEN is set, all endpoints require
@@ -36,7 +37,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import publisher, refs, syndicate
+from . import pds_import, publisher, refs, syndicate
 from .db import STATES, Store
 from .lexicon import LexiconRegistry
 
@@ -283,6 +284,33 @@ def unpublish(strand_id: str, body: PublishIn):
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"unpublish failed: {exc}")
+
+
+class PdsImportIn(BaseModel):
+    identity: str
+    since: str | None = Field(default=None, max_length=40)
+    dryRun: bool = False
+
+
+@app.post("/import/pds", dependencies=[Depends(auth)])
+def import_pds(body: PdsImportIn, org: Origin = Depends(origin)):
+    """Bring beads and annotations written straight to the network home.
+
+    The round trip (pds_import.py): records the "I went" composer, Pocket or
+    any other client wrote to the identity's own repository arrive held,
+    kept and marked published, so they can be edited here and republished
+    in place. Reads the repo publicly; never logs in.
+    """
+    ident = store.identity_get(body.identity)
+    if ident is None:
+        raise HTTPException(status_code=404, detail="unknown identity")
+    try:
+        return pds_import.run(store, registry, ident, since=body.since,
+                              dry_run=body.dryRun, device=org.device, actor=org.actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"could not read the repository: {exc}")
 
 
 class PublishedIn(BaseModel):
