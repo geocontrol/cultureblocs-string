@@ -169,6 +169,29 @@ def _common(body: dict, out: dict) -> dict:
     return out
 
 
+STRONG_REF = "com.cultureblocs.defs#strongRef"
+
+
+def strip_subject(subject) -> dict | None:
+    """The public form of a bead's `subject`, or None.
+
+    A place publishes as its name alone: "Tate Modern" goes, the coordinates
+    that would put you inside it do not. A strongRef — the published event or
+    exhibition the bead belongs to, as the "I went" composer writes it — goes
+    as its at:// uri and cid: it points at a record that is already public,
+    and dropping it would cut a born-public bead off from its event the first
+    time it was republished from the String.
+    """
+    if not isinstance(subject, dict):
+        return None
+    uri = subject.get("uri")
+    if _str(uri) and uri.startswith("at://"):
+        return {"$type": STRONG_REF, **_pick(subject, ("uri", "cid"))}
+    if _str(subject.get("name")):
+        return {"name": subject["name"]}
+    return None
+
+
 def strip_bead(body: dict, images: list | None = None) -> dict:
     """Public subset of a bead or annotation.
 
@@ -180,9 +203,9 @@ def strip_bead(body: dict, images: list | None = None) -> dict:
     for k in BEAD_FIELDS:
         if _str(body.get(k)):
             out[k] = body[k]
-    subject = body.get("subject")
-    if isinstance(subject, dict) and _str(subject.get("name")):
-        out["subject"] = {"name": subject["name"]}
+    subject = strip_subject(body.get("subject"))
+    if subject is not None:
+        out["subject"] = subject
     if body.get("$type") == ANNOTATION:
         work = strip_work_ref(body.get("work"))
         if work is not None:

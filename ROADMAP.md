@@ -133,9 +133,10 @@ pattern; none of them is a feed.
   your own repository with no String to run. PKCE + pushed authorisation
   + DPoP, with the private key non-extractable in IndexedDB. Deployed at
   cultureblocs.com/pocket/ because the client id must be a stable URL.
-- [x] **The round trip** — `scripts/import_repo.py` brings
-  born-public beads home to be told, and re-publishing updates the same
-  public record instead of orphaning it.
+- [x] **The round trip** — `POST /import/pds` (and `scripts/import_repo.py`)
+  brings born-public beads home to be told, and re-publishing updates the same
+  public record instead of orphaning it — keeping the event an "I went" bead
+  belongs to, and the photos a phone bead already has.
 - [ ] **Local-only notes** for someone with no account at all: keep it on
   this phone, claim it later. The missing rung between "scan" and
   "create a decentralised identity" — see the QR journey diagram.

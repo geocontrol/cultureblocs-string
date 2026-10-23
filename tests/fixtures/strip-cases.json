@@ -89,6 +89,57 @@
     }
   },
   {
+    "name": "a strongRef subject (the event a born-public bead belongs to) keeps its uri and cid",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-10-16T12:00:00Z",
+      "kind": "visit",
+      "subject": {
+        "$type": "com.cultureblocs.defs#strongRef",
+        "uri": "at://did:plc:cultureblocs/community.lexicon.calendar.event/frieze",
+        "cid": "bafyreievent",
+        "extra": "dropped"
+      },
+      "provenance": {
+        "app": "com.cultureblocs.went",
+        "mintedAt": "2026-10-16T12:01:00Z",
+        "timeAnchored": false
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-10-16T12:00:00Z",
+      "kind": "visit",
+      "subject": {
+        "$type": "com.cultureblocs.defs#strongRef",
+        "uri": "at://did:plc:cultureblocs/community.lexicon.calendar.event/frieze",
+        "cid": "bafyreievent"
+      }
+    }
+  },
+  {
+    "name": "a subject uri that is not at:// is not a strongRef and falls back to the name",
+    "fn": "bead",
+    "body": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-10-16T12:00:00Z",
+      "kind": "visit",
+      "subject": {
+        "uri": "https://example.com/private",
+        "name": "Somewhere"
+      }
+    },
+    "expected": {
+      "$type": "com.cultureblocs.bead",
+      "createdAt": "2026-10-16T12:00:00Z",
+      "kind": "visit",
+      "subject": {
+        "name": "Somewhere"
+      }
+    }
+  },
+  {
     "name": "uploaded images arrive as imageRefs and replace the local media refs",
     "fn": "bead",
     "body": {

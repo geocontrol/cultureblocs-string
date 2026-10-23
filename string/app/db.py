@@ -114,6 +114,7 @@ STATES = ("proposal", "kept", "draft", "published", "edited")
 POST_MIGRATION_SCHEMA = """
 CREATE INDEX IF NOT EXISTS idx_records_state ON records(state);
 CREATE INDEX IF NOT EXISTS idx_changes_hlc ON changes(hlc);
+CREATE INDEX IF NOT EXISTS idx_records_published ON records(published_uri);
 """
 
 
@@ -443,6 +444,19 @@ class Store:
             row = cur.fetchone()
             return self._with_syndications(self._row(row)) if row else None
 
+    def by_published_uri(self, uri: str) -> dict | None:
+        """The record whose public twin is `uri`, if the String holds one."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM records WHERE published_uri=? LIMIT 1", (uri,)).fetchone()
+            return self._row(row) if row else None
+
+    def by_dedupe_key(self, key: str) -> dict | None:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM records WHERE dedupe_key=?", (key,)).fetchone()
+            return self._row(row) if row else None
+
     def query(self, day: str | None = None, rtype: str | None = None,
               source_app: str | None = None, state: str | None = None,
               limit: int = 500) -> list[dict]:
@@ -474,6 +488,11 @@ class Store:
             return [{"seq": r["seq"], "recordId": r["record_id"], "op": r["op"],
                      "at": r["at"], "hlc": r["hlc"], "deviceId": r["device_id"],
                      "actor": r["actor"], "body": json.loads(r["body"])} for r in cur]
+
+    def latest_seq(self) -> int:
+        """The newest change-feed position, 0 for an empty feed."""
+        with self._lock:
+            return self.conn.execute("SELECT IFNULL(MAX(seq), 0) FROM changes").fetchone()[0]
 
     def days(self) -> list[dict]:
         with self._lock:
