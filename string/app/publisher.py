@@ -213,8 +213,8 @@ def publish_strand_full(store, strand_id: str, identity: dict,
         if rec is None or rec["type"] not in BEAD_TYPES:
             continue
         _refuse_if_seeded(rec)
-        images = (_image_refs(rec["body"], media_dir, pds, jwt)
-                  or _born_public_images(rec, did))
+        # Photos it was born with first, then any attached here since.
+        images = _born_public_images(rec, did) + _image_refs(rec["body"], media_dir, pds, jwt)
         stripped = strip_bead(rec["body"], images=images)
         res = _xrpc(pds, "com.atproto.repo.putRecord", token=jwt, body={
             "repo": did, "collection": rec["type"],

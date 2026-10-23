@@ -198,9 +198,12 @@ def set_state(rid: str, body: StateIn, org: Origin = Depends(origin)):
 
 @app.get("/changes", dependencies=[Depends(auth)])
 def changes(since: int = 0, limit: int = 500):
+    """`latest` is the feed's newest position: a client whose cursor is past
+    it is holding a cursor from a String that has since been rebuilt, and
+    must start again rather than wait forever for changes that never come."""
     items = store.changes_since(since, min(limit, 2000))
     cursor = items[-1]["seq"] if items else since
-    return {"changes": items, "cursor": cursor}
+    return {"changes": items, "cursor": cursor, "latest": store.latest_seq()}
 
 
 class IdentityIn(BaseModel):

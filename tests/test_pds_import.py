@@ -151,3 +151,75 @@ def test_republishing_a_born_public_bead_keeps_its_photos(monkeypatch):
     rec = {"publishedUri": f"at://{DID}/com.cultureblocs.bead/x", "body": {"images": images}}
     assert publisher._born_public_images(rec, DID) == images
     assert publisher._born_public_images(rec, "did:plc:someone-else") == []
+
+
+def test_a_refresh_keeps_what_the_strip_withheld(client, net):
+    """Review finding: refreshing from the stripped network copy must not erase private parts."""
+    import app.main as main
+    net["com.cultureblocs.bead"].append(went_bead("first"))
+    rid = run(client)["created"][0]["id"]
+    # Locally: a place with coordinates, and a private person ref — both withheld by the strip.
+    rec = main.store.get(rid)
+    body = {**rec["body"], "subject": {"name": "Regent's Park", "geo": {"lat": 51.53, "lng": -0.15, "precision": "exact"}},
+            "refs": [{"type": "person", "role": "mention", "descriptor": {"label": "Mum"}}]}
+    main.store.patch(rid, {"subject": body["subject"], "refs": body["refs"]})
+    from app.strip import drift_hash
+    main.store.set_published(rid, rec["publishedUri"], drift_hash(body))
+    # On the network: the same public subject, a new note.
+    edited = went_bead("second thoughts")
+    edited["value"]["subject"] = {"name": "Regent's Park"}
+    net["com.cultureblocs.bead"][0] = edited
+    out = run(client)
+    assert out["counts"]["refreshed"] == 1, (out["counts"], out["invalid"])
+    after = main.store.get(rid)["body"]
+    assert after["note"] == "second thoughts"
+    assert after["subject"]["geo"]["lat"] == 51.53
+    assert after["refs"] == [{"type": "person", "role": "mention", "descriptor": {"label": "Mum"}}]
+
+
+def test_a_photo_added_on_the_network_after_an_edit_here_is_a_conflict(client, net):
+    net["com.cultureblocs.bead"].append(went_bead("first"))
+    rid = run(client)["created"][0]["id"]
+    client.patch(f"/records/{rid}", json={"fields": {"note": "edited in Loom"}})
+    with_photo = went_bead("first")
+    with_photo["value"]["images"] = [{"image": {"$type": "blob", "ref": {"$link": "bafyimg"}, "mimeType": "image/jpeg", "size": 10}}]
+    net["com.cultureblocs.bead"][0] = with_photo
+    assert run(client)["counts"]["conflict"] == 1
+
+
+def test_a_refresh_never_lands_on_a_version_it_did_not_plan_against(client, net, monkeypatch):
+    import app.main as main
+    import app.pds_import as pds_import
+    net["com.cultureblocs.bead"].append(went_bead("first"))
+    rid = run(client)["created"][0]["id"]
+    net["com.cultureblocs.bead"][0] = went_bead("from the site")
+    real = main.store.by_published_uri
+
+    def racing(uri):
+        held = real(uri)
+        main.store.patch(rid, {"note": "a Loom edit arriving mid-import"})   # lands after the read
+        return held
+    monkeypatch.setattr(main.store, "by_published_uri", racing)
+    out = run(client)
+    assert out["counts"]["conflict"] == 1 and out["counts"]["refreshed"] == 0
+    assert main.store.get(rid)["body"]["note"] == "a Loom edit arriving mid-import"
+
+
+def test_republishing_with_a_new_local_photo_keeps_the_born_public_ones(monkeypatch):
+    import app.publisher as publisher
+    born = [{"image": {"$type": "blob", "ref": {"$link": "bafyold"}, "mimeType": "image/jpeg", "size": 10}}]
+    store_rec = {"id": "r1", "type": "com.cultureblocs.bead", "publishedUri": f"at://{DID}/com.cultureblocs.bead/x",
+                 "body": {"$type": "com.cultureblocs.bead", "kind": "visit", "createdAt": "2026-10-16T12:00:00Z",
+                          "images": born, "media": [{"uri": "/media/" + "a" * 64 + ".jpg"}]}}
+    monkeypatch.setattr(publisher, "_image_refs", lambda *a, **k: [{"image": {"ref": {"$link": "bafynew"}}}])
+    got = publisher._born_public_images(store_rec, DID) + publisher._image_refs(store_rec["body"], None, PDS, "jwt")
+    assert [i["image"]["ref"]["$link"] for i in got] == ["bafyold", "bafynew"]
+
+
+def test_the_change_feed_says_where_it_ends(client):
+    assert client.get("/changes", params={"since": 99}).json()["latest"] == 0
+    client.post("/records", json={"records": [{"dedupeKey": "x", "type": "com.cultureblocs.bead", "sourceApp": "t",
+        "createdAt": "2026-10-16T12:00:00Z", "body": {"$type": "com.cultureblocs.bead", "kind": "note",
+        "createdAt": "2026-10-16T12:00:00Z", "note": "n"}}]})
+    out = client.get("/changes", params={"since": 0}).json()
+    assert out["latest"] == out["cursor"] == 1

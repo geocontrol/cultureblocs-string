@@ -489,6 +489,11 @@ class Store:
                      "at": r["at"], "hlc": r["hlc"], "deviceId": r["device_id"],
                      "actor": r["actor"], "body": json.loads(r["body"])} for r in cur]
 
+    def latest_seq(self) -> int:
+        """The newest change-feed position, 0 for an empty feed."""
+        with self._lock:
+            return self.conn.execute("SELECT IFNULL(MAX(seq), 0) FROM changes").fetchone()[0]
+
     def days(self) -> list[dict]:
         with self._lock:
             cur = self.conn.execute(

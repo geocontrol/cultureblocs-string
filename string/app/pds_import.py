@@ -46,7 +46,7 @@ import urllib.parse
 import urllib.request
 
 from . import refs
-from .strip import content_hash, drift_hash, strip_bead
+from .strip import content_hash, drift_hash, strip_bead, strip_ref
 
 COLLECTIONS = ("com.cultureblocs.bead", "com.cultureblocs.annotation")
 STRAND = "com.cultureblocs.strand"
@@ -92,8 +92,13 @@ def resolve(identity: dict) -> tuple[str, str]:
     return did, pds.rstrip("/")
 
 
+class Truncated(list):
+    """A listing that stopped at MAX_PAGES with more still to read."""
+
+
 def list_records(pds: str, did: str, collection: str) -> list[dict]:
-    out, cursor = [], None
+    out, cursor = Truncated(), None
+    out.truncated = False
     for _ in range(MAX_PAGES):
         q = {"repo": did, "collection": collection, "limit": 100}
         if cursor:
@@ -103,6 +108,8 @@ def list_records(pds: str, did: str, collection: str) -> list[dict]:
         cursor = page.get("cursor")
         if not cursor or not page.get("records"):
             break
+    else:
+        out.truncated = True
     return out
 
 
@@ -116,18 +123,43 @@ def _public(body: dict) -> dict:
 
 
 def _merged(held: dict, network: dict) -> dict:
-    """The held body with its public fields replaced by the network's.
+    """The held body, with what changed publicly on the network taken in.
 
-    Keys the strip publishes come from the network (and go if the network
-    dropped them); every other key — provenance, media, geo, private notes
-    fields — is the String's own and stays.
+    Only a key whose *public form* differs is touched: a field the network
+    did not change keeps the String's full value, including whatever the
+    strip withholds inside it (a place's coordinates, a private ref). Where a
+    key did change:
+
+      subject  a strongRef from the network replaces it; a place renamed on the
+               network keeps its coordinates and takes the new name
+      refs     the network's public refs, plus every held ref the strip would
+               have withheld (a person ref not public anywhere stays private)
+      others   the network's value, or gone if the network dropped it
+
+    Keys the strip never publishes (provenance, media, geo) are the String's
+    own and are never touched. A bead with no local `media` is born public:
+    its photos exist only as blobs, so `images` follows the network.
     """
     out = dict(held)
-    for key in (set(_public(held)) | set(_public(network))) - {"$type"}:
-        if key in network:
-            out[key] = network[key]
-        else:
+    pub_held, pub_net = _public(held), _public(network)
+    for key in (set(pub_held) | set(pub_net)) - {"$type"}:
+        if pub_held.get(key) == pub_net.get(key):
+            continue                                   # unchanged publicly: keep ours whole
+        if key not in network:
             out.pop(key, None)
+        elif key == "subject":
+            mine, theirs = held.get("subject"), network["subject"]
+            renamed_place = (isinstance(mine, dict) and isinstance(theirs, dict)
+                             and not str(theirs.get("uri", "")).startswith("at://")
+                             and not str(mine.get("uri", "")).startswith("at://"))
+            out["subject"] = {**mine, "name": theirs.get("name")} if renamed_place else theirs
+        elif key == "refs":
+            private = [r for r in (held.get("refs") or []) if strip_ref(r) is None]
+            out["refs"] = list(network["refs"] or []) + private
+        else:
+            out[key] = network[key]
+    if not out.get("refs"):
+        out.pop("refs", None)
     if not held.get("media"):          # born public: its photos live only as blobs
         if "images" in network:
             out["images"] = network["images"]
@@ -156,8 +188,12 @@ def run(store, registry, identity: dict, *, since: str | None = None,
     except Exception:
         pass                            # only a count for the report
 
+    report["truncated"] = []
     for coll in COLLECTIONS:
-        for item in list_records(pds, did, coll):
+        listing = list_records(pds, did, coll)
+        if getattr(listing, "truncated", False):
+            report["truncated"].append(coll)       # more than MAX_PAGES: run again with `since`
+        for item in listing:
             uri, value = item.get("uri"), item.get("value")
             if not isinstance(uri, str) or not isinstance(value, dict):
                 continue
@@ -210,7 +246,8 @@ def run(store, registry, identity: dict, *, since: str | None = None,
                 # against what was published; with local photos it cannot, and
                 # the String's edit is taken to be the only change.
                 network_since = (not held["body"].get("media")
-                                 and content_hash(strip_bead(body)) != held["publishedHash"])
+                                 and (content_hash(strip_bead(body)) != held["publishedHash"]
+                                      or body.get("images") != held["body"].get("images")))
                 if not network_since:
                     counts["own" if not held["dedupeKey"].startswith(DEDUPE_PREFIX) else "unchanged"] += 1
                     continue
@@ -223,11 +260,19 @@ def run(store, registry, identity: dict, *, since: str | None = None,
                 counts["invalid"] += 1
                 report["invalid"].append({"uri": uri, "problems": problems})
                 continue
-            counts["refreshed"] += 1
-            report["refreshed"].append({"uri": uri, "id": held["id"]})
             if dry_run:
+                counts["refreshed"] += 1
+                report["refreshed"].append({"uri": uri, "id": held["id"]})
                 continue
             fields = {**merged, **{k: None for k in held["body"] if k not in merged}}
-            store.patch(held["id"], fields, device=device, actor=actor)
+            # Only onto the version planned against: a Loom edit that landed while
+            # this was reading the network must not be undone by it.
+            if store.patch(held["id"], fields, expect_hlc=held.get("hlc") or "",
+                           device=device, actor=actor) is store.STALE:
+                counts["conflict"] += 1
+                report["conflicts"].append({"uri": uri, "id": held["id"]})
+                continue
             store.set_published(held["id"], uri, drift_hash(merged), device=device, actor=actor)
+            counts["refreshed"] += 1
+            report["refreshed"].append({"uri": uri, "id": held["id"]})
     return report
