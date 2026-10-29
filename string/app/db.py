@@ -297,7 +297,7 @@ class Store:
         """
         with self._lock:
             cur = self.conn.execute(
-                "SELECT body, revision, hlc FROM records WHERE id=?", (rid,))
+                "SELECT type, body, revision, hlc, created_at FROM records WHERE id=?", (rid,))
             row = cur.fetchone()
             if row is None:
                 return None
@@ -309,10 +309,18 @@ class Store:
                     body[key] = value
             payload = json.dumps(body, separators=(",", ":"))
             stamp = self.hlc.now()
-            sql = ("UPDATE records SET body=?, revision=revision+1, hlc=?,"
+            # A corrected time moves the record to its day: created_at (which
+            # days and listings read) follows the body's createdAt. Not for a
+            # strand, whose body createdAt is restamped on every save and
+            # whose day is its own `day` field.
+            created_at = row["created_at"]
+            when = body.get("createdAt")
+            if row["type"] != "com.cultureblocs.strand" and isinstance(when, str) and when:
+                created_at = when
+            sql = ("UPDATE records SET body=?, revision=revision+1, hlc=?, created_at=?,"
                    " state=CASE WHEN state='proposal' THEN 'kept' ELSE state END"
                    " WHERE id=?")
-            args: list = [payload, stamp, rid]
+            args: list = [payload, stamp, created_at, rid]
             if expect_hlc is not None:
                 sql += " AND IFNULL(hlc, '') = ?"
                 args.append(expect_hlc)
