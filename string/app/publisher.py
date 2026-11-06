@@ -131,11 +131,18 @@ def _born_public_images(rec: dict, did: str) -> list:
 
 
 PUBLIC_TYPES = ("com.cultureblocs.creative.profile", "com.cultureblocs.creative.work",
-                "com.cultureblocs.creative.connection", "com.cultureblocs.venue.profile",
-                "com.cultureblocs.venue.lineup", "com.cultureblocs.venue.listing",
+                "com.cultureblocs.creative.connection",
+                "com.cultureblocs.place.profile", "com.cultureblocs.place.lineup",
+                "com.cultureblocs.offer",
+                # deprecated, still publishable so held records can be republished
+                "com.cultureblocs.venue.profile", "com.cultureblocs.venue.lineup",
+                "com.cultureblocs.venue.listing",
                 "community.lexicon.calendar.event", "community.lexicon.calendar.rsvp")
 
-SELF_KEYED = ("com.cultureblocs.creative.profile", "com.cultureblocs.venue.profile")
+# place.profile is keyed `any` (one account can run several places), but the
+# String holds one place per identity, so it publishes at "self" like the rest.
+SELF_KEYED = ("com.cultureblocs.creative.profile", "com.cultureblocs.place.profile",
+              "com.cultureblocs.venue.profile")
 
 SEED_TAG = "seed:artworld"
 

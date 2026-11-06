@@ -8,8 +8,11 @@ than registries.
     com.cultureblocs.creative.work        "I made this" / "we made this"
     com.cultureblocs.creative.connection  a directional claim about
                                           another party or record
-    com.cultureblocs.venue.profile        a venue as a publishing party
-    com.cultureblocs.venue.lineup         who is on, over a shared event
+    com.cultureblocs.place.profile        a place as a publishing party:
+                                          venue, gallery, studio, rehearsal
+                                          room, supplier, shop
+    com.cultureblocs.place.lineup         who is on, over a shared event
+    com.cultureblocs.offer                an offer or a need, for a while
 
 Events themselves are NOT ours. They are published as
 `community.lexicon.calendar.event` — the shared event record stewarded by
@@ -17,6 +20,13 @@ Events themselves are NOT ours. They are published as
 appears in every calendar app that speaks it (atmo.rsvp and others),
 not only in CultureBlocs. `com.cultureblocs.venue.listing` is
 **deprecated**; it remains published so existing records resolve.
+
+`venue.profile` and `venue.lineup` were replaced by `place.profile` and
+`place.lineup` on 6 Nov 2026: a venue is now a place whose `spaceTypes`
+include `venue`. The old records are deprecated but still published, and
+the AppView reads an old venue profile as a place, so nothing has to be
+republished. People locate themselves by area (`basedIn` / `activeIn`),
+never by address; only places the public can visit or book carry one.
 
 ## The positions these encode
 
@@ -65,7 +75,7 @@ exactly the mistake this project keeps warning about, so:
 - **The event is the shared record.** We write it, we read it, we do not
   own it. If a venue already publishes events some other way, we index
   those instead and add nothing.
-- **Our layer references it.** `venue.lineup` carries who is on and works
+- **Our layer references it.** `place.lineup` carries who is on and works
   shown, pinned to the event by strongRef. Same discipline as the creative
   namespace: layers reference the core claim rather than growing it. If
   these fields prove generally useful they belong upstream, in the
@@ -123,12 +133,16 @@ You host the String; the venue owns its identity and its records.
 2. **Profile, once.**
 
        python scripts/venue.py profile --name "The Ivy House" \
-         --address "..." --capacity 150 \
-         --accessibility "step-free entry, accessible toilet" \
+         --type venue --access bookable \
+         --street "40 Stuart Rd" --city London --postcode "SE15 3BE" \
+         --capacity 150 --accessibility "step-free entry, accessible toilet" \
          --link "https://…|website"
        python scripts/promote.py publish <record-id> --identity ivyhouse
 
-   It publishes at rkey `self`, so re-publishing updates in place.
+   This writes a `place.profile`. `--type` is repeatable (`gallery`,
+   `rehearsal_room`, `recording_studio`, `artist_studio`, `supplier`,
+   `shop` and the rest). It publishes at rkey `self`, so re-publishing
+   updates in place.
 
 3. **An event per night**, in the shared type:
 
@@ -141,7 +155,8 @@ You host the String; the venue owns its identity and its records.
    Optionally add the cultural layer (who is on):
 
        python scripts/venue.py lineup --event-uri at://…/community.lexicon.calendar.event/… \
-         --event-cid bafy… --billing "The Bug Club|live"
+         --event-cid bafy… --place-uri at://…/com.cultureblocs.place.profile/self \
+         --billing "The Bug Club|live"
        python scripts/promote.py publish <record-id> --identity ivyhouse
 
    Or use **Doors**, which writes both records from one form.

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Venues: a profile, and events that audiences can point their beads at.
+"""Places: a profile, and events that audiences can point their beads at.
 
-Events are published as `community.lexicon.calendar.event` — the shared
-event record of the open social web — so a venue's nights appear in
-every calendar app on the network, not only in CultureBlocs. Cultural
-detail the shared record does not carry (who is on, works shown) goes in
-a `com.cultureblocs.venue.lineup` record that references the event.
+A venue, gallery, rehearsal room, studio, supplier or shop publishes a
+`com.cultureblocs.place.profile` (which replaced venue.profile on
+6 Nov 2026; a venue is a place whose spaceTypes include "venue"). Events
+are published as `community.lexicon.calendar.event` — the shared event
+record of the open social web — so a place's nights appear in every
+calendar app on the network, not only in CultureBlocs. Cultural detail the
+shared record does not carry (who is on, works shown) goes in a
+`com.cultureblocs.place.lineup` record that references the event.
 
 Deliberately small. The venue publishes what is happening; people who
 came publish their own beads referencing the event. The venue counts
@@ -14,8 +17,9 @@ is what makes this workable for a space with no data protection officer
 and no budget.
 
     python scripts/venue.py profile --name "The Ivy House" \
-        --address "40 Stuart Rd, London SE15 3BE" --capacity 150 \
-        --accessibility "step-free entry, accessible toilet" \
+        --type venue --access bookable \
+        --street "40 Stuart Rd" --city London --postcode "SE15 3BE" \
+        --capacity 150 --accessibility "step-free entry, accessible toilet" \
         --link "https://ivyhousenunhead.com|website"
 
     python scripts/venue.py event --title "Friday Session" \
@@ -24,10 +28,10 @@ and no budget.
         --link "https://dice.fm/...|tickets"
     # then, optionally, the cultural layer referencing that event:
     python scripts/venue.py lineup --event-uri at://…/community.lexicon.calendar.event/… \
-        --event-cid bafy… --billing "The Bug Club|live" --billing "DJ Nadia|dj" \
-        --tags gig,peckham
+        --event-cid bafy… --place-uri at://…/com.cultureblocs.place.profile/self \
+        --billing "The Bug Club|live" --billing "DJ Nadia|dj" --tags gig,peckham
 
-Then publish under the venue's identity:
+Then publish under the place's identity:
     python scripts/promote.py publish <record-id> --identity venue
 """
 from __future__ import annotations
@@ -81,6 +85,74 @@ def tags(s):
     return [t.strip() for t in (s or "").split(",") if t.strip()][:8]
 
 
+SPACE_TYPES = ("venue", "gallery", "museum", "cinema", "theatre", "rehearsal_room",
+               "recording_studio", "artist_studio", "makerspace", "workshop",
+               "coworking", "supplier", "shop", "library", "community_space")
+ACCESS = ("walk_in", "by_appointment", "bookable", "online_only")
+
+
+def place_profile(args, t: str) -> dict:
+    """A com.cultureblocs.place.profile from the command line.
+
+    Location is the shared community.lexicon.location.address when there is
+    a street, city or postcode, otherwise a geo point when --lat/--lng are
+    given. Places are public, so an address is expected; an online-only
+    supplier gives neither.
+    """
+    body = {"$type": "com.cultureblocs.place.profile", "name": args.name,
+            "spaceTypes": [s for s in (args.space_types or ["venue"]) if s][:8],
+            "createdAt": t}
+    if args.access:
+        body["publicAccess"] = args.access
+    if args.description:
+        body["description"] = args.description
+    street = args.street or args.address
+    if args.access != "online_only" and (street or args.city or args.postcode):
+        loc = {"$type": "community.lexicon.location.address", "country": args.country}
+        if street:
+            loc["street"] = street
+        if args.city:
+            loc["locality"] = args.city
+        if args.postcode:
+            loc["postalCode"] = args.postcode.upper()
+        body["location"] = loc
+    elif args.access != "online_only" and args.lat is not None and args.lng is not None:
+        body["location"] = {"$type": "community.lexicon.location.geo",
+                            "latitude": str(args.lat), "longitude": str(args.lng),
+                            "name": args.name}
+    if args.capacity:
+        body["capacity"] = args.capacity
+    if args.accessibility:
+        body["accessibility"] = args.accessibility
+    if args.hours:
+        body["hours"] = args.hours
+    if links(args.link):
+        body["links"] = links(args.link)
+    if ext_ids(args.external_id):
+        body["externalIds"] = ext_ids(args.external_id)
+    if tags(args.tags):
+        body["tags"] = tags(args.tags)
+    return body
+
+
+def place_lineup(args, t: str) -> dict:
+    """A com.cultureblocs.place.lineup over a shared calendar event."""
+    body = {"$type": "com.cultureblocs.place.lineup",
+            "event": {"uri": args.event_uri,
+                      **({"cid": args.event_cid} if args.event_cid else {})},
+            "createdAt": t}
+    if billing(args.billing):
+        body["billing"] = billing(args.billing)
+    if args.place_uri:
+        body["place"] = {"uri": args.place_uri,
+                         **({"cid": args.place_cid} if args.place_cid else {})}
+    if args.note:
+        body["note"] = args.note
+    if tags(args.tags):
+        body["tags"] = tags(args.tags)
+    return body
+
+
 def post(args, rtype, body, dedupe):
     record = {"dedupeKey": dedupe, "type": rtype, "sourceApp": "venue-cli",
               "createdAt": body["createdAt"], "body": body}
@@ -113,9 +185,18 @@ def main() -> None:
     p.add_argument("--title")
     p.add_argument("--start", help="ISO datetime, e.g. 2026-08-14T20:00:00Z")
     p.add_argument("--end")
-    p.add_argument("--venue-uri", help="at:// URI of the venue profile record")
-    p.add_argument("--venue-cid")
+    p.add_argument("--place-uri", "--venue-uri", dest="place_uri",
+                   help="at:// URI of the place profile record")
+    p.add_argument("--place-cid", "--venue-cid", dest="place_cid")
     p.add_argument("--venue-name", help="if the venue has no CultureBlocs identity")
+    p.add_argument("--type", action="append", dest="space_types",
+                   help=f"kind of place, repeatable: {', '.join(SPACE_TYPES)} "
+                        "(default venue)")
+    p.add_argument("--access", choices=ACCESS,
+                   help="how the public visits or books it")
+    p.add_argument("--street", help="street address (--address is accepted too)")
+    p.add_argument("--postcode")
+    p.add_argument("--hours", help="opening or booking hours, freeform")
     p.add_argument("--event-uri", help="at:// URI of the event a lineup describes")
     p.add_argument("--event-cid", help="CID of that event, pinning what is described")
     p.add_argument("--city")
@@ -139,29 +220,10 @@ def main() -> None:
     if args.cmd == "profile":
         if not args.name:
             sys.exit("--name required")
-        body = {"$type": "com.cultureblocs.venue.profile",
-                "name": args.name, "createdAt": t}
-        if args.description:
-            body["description"] = args.description
-        if args.address:
-            body["address"] = args.address
-        if args.lat is not None and args.lng is not None:
-            body["place"] = {"name": args.name,
-                             "geo": {"lat": args.lat, "lng": args.lng,
-                                     "precision": "exact"}}
-        elif args.name:
-            body["place"] = {"name": args.name}
-        if args.capacity:
-            body["capacity"] = args.capacity
-        if args.accessibility:
-            body["accessibility"] = args.accessibility
-        if links(args.link):
-            body["links"] = links(args.link)
-        if ext_ids(args.external_id):
-            body["externalIds"] = ext_ids(args.external_id)
-        if tags(args.tags):
-            body["tags"] = tags(args.tags)
-        post(args, body["$type"], body, "venue:profile:self")
+        body = place_profile(args, t)
+        # A new key: the String keeps the first record under a key, so an old
+        # venue:profile:self must not swallow the new place record.
+        post(args, body["$type"], body, "place:profile:self")
 
     elif args.cmd == "event":
         if not (args.title and args.start):
@@ -202,19 +264,7 @@ def main() -> None:
     else:  # lineup — the cultural layer over a shared event record
         if not args.event_uri:
             sys.exit("--event-uri required (the event this lineup describes)")
-        body = {"$type": "com.cultureblocs.venue.lineup",
-                "event": {"uri": args.event_uri,
-                          **({"cid": args.event_cid} if args.event_cid else {})},
-                "createdAt": t}
-        if billing(args.billing):
-            body["billing"] = billing(args.billing)
-        if args.venue_uri:
-            body["venue"] = {"uri": args.venue_uri,
-                             **({"cid": args.venue_cid} if args.venue_cid else {})}
-        if args.note:
-            body["note"] = args.note
-        if tags(args.tags):
-            body["tags"] = tags(args.tags)
+        body = place_lineup(args, t)
         post(args, body["$type"], body, f"lineup:{uuid.uuid4()}")
 
 
