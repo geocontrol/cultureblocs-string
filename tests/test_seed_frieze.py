@@ -56,12 +56,13 @@ def test_fair_event_validates():
 
 
 def test_stand_names_the_gallery_through_billing():
-    """These galleries have no repo, so `venue` stays empty and the gallery is
+    """These galleries have no repo, so `place` stays empty and the gallery is
     named through billing, whose creditRef requires only a name."""
     _, body = stand_lineup(ROW, "spine://records/fair1", "frieze-london-2026",
                            [], NOW)
     assert body["billing"][0] == {"name": "Alison Jacques", "role": "gallery"}
-    assert "venue" not in body, "venue must be absent, never faked"
+    assert body["$type"] == "com.cultureblocs.place.lineup"
+    assert "place" not in body and "venue" not in body, "the place must be absent, never faked"
 
 
 def test_stand_carries_section_and_seed_tags():
@@ -127,7 +128,7 @@ def test_whitespace_only_description_is_omitted():
 def test_stand_validates():
     _, body = stand_lineup(ROW, "spine://records/fair1", "frieze-london-2026",
                            ["Sheila Hicks"], NOW)
-    problems = registry().validate_record("com.cultureblocs.venue.lineup", body)
+    problems = registry().validate_record("com.cultureblocs.place.lineup", body)
     assert not problems, problems
 
 
@@ -139,7 +140,7 @@ def test_long_description_is_truncated_not_dropped():
     _, body = stand_lineup(row, "spine://records/fair1", "frieze-london-2026", [], NOW)
     assert len(body["note"]) <= 2000
     assert body["note"].endswith("…"), "truncation must be visible"
-    problems = registry().validate_record("com.cultureblocs.venue.lineup", body)
+    problems = registry().validate_record("com.cultureblocs.place.lineup", body)
     assert not problems, problems
 
 

@@ -9,13 +9,21 @@ function headers(token, json) {
   return h;
 }
 
+/* Stands are line-ups over the seeded fair event. New seeds are
+ * place.lineup; stands seeded before 6 Nov 2026 are held as venue.lineup,
+ * and the String keeps a record's first type, so read both. */
+export const LINEUP_TYPES = ['com.cultureblocs.place.lineup', 'com.cultureblocs.venue.lineup'];
+
 export async function fetchStands(url, token) {
-  const r = await fetch(
-    `${url.replace(/\/$/, '')}/records?type=com.cultureblocs.venue.lineup&limit=500`,
-    { headers: headers(token, false) });
-  if (!r.ok) throw new Error(`the String answered ${r.status}`);
-  const body = await r.json();
-  return Array.isArray(body) ? body : (body.records || []);
+  const base = url.replace(/\/$/, '');
+  const pages = await Promise.all(LINEUP_TYPES.map(async (type) => {
+    const r = await fetch(`${base}/records?type=${type}&limit=500`, { headers: headers(token, false) });
+    if (!r.ok) throw new Error(`the String answered ${r.status}`);
+    const body = await r.json();
+    return Array.isArray(body) ? body : (body.records || []);
+  }));
+  const seen = new Set();
+  return pages.flat().filter((x) => (x?.id && seen.has(x.id) ? false : (seen.add(x?.id), true)));
 }
 
 /* The seeded fair event, which carries the run's span and its name. Returns

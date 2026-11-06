@@ -15,7 +15,7 @@ from __future__ import annotations
 import datetime as _dt
 
 SOURCE_APP = "seed-frieze"
-NOTE_MAX = 2000          # com.cultureblocs.venue.lineup.note maxGraphemes
+NOTE_MAX = 2000          # com.cultureblocs.place.lineup.note maxGraphemes
 
 
 def day_list(start: str, end: str) -> list[str]:
@@ -56,12 +56,16 @@ def stand_lineup(row: dict, event_uri: str, fair_slug: str,
                  artists: list[str], now: str) -> tuple[str, dict]:
     """One gallery's presence at the fair.
 
-    `venue` is deliberately absent. It is a strongRef to a gallery's own
-    repository, and these galleries have none — venue.profile is keyed
-    `literal:self`, so a repo describes itself. Naming the gallery through
+    `place` is deliberately absent. It is a strongRef to a gallery's own
+    repository, and these galleries have none — a place.profile lives in the
+    place's own repo, so a repo describes itself. Naming the gallery through
     `billing` (whose creditRef needs only a name) claims nothing on its
-    behalf, and leaves `venue` free to become a real attestation if a gallery
+    behalf, and leaves `place` free to become a real attestation if a gallery
     ever publishes a profile.
+
+    Stands seeded before 6 Nov 2026 are held as venue.lineup; the String keeps
+    the first record under a dedupe key, so re-seeding leaves them as they
+    were, and Rounds reads both types.
     """
     billing = [{"name": row["name"], "role": "gallery"}]
     billing += [{"name": a, "role": "artist"} for a in artists if a]
@@ -71,7 +75,7 @@ def stand_lineup(row: dict, event_uri: str, fair_slug: str,
         tags.append(f"section:{row['section']}")
 
     body = {
-        "$type": "com.cultureblocs.venue.lineup",
+        "$type": "com.cultureblocs.place.lineup",
         "event": {"uri": event_uri},
         "billing": billing[:20],          # creditRef maxLength
         "tags": tags[:8],                 # lexicon maxLength
@@ -79,7 +83,7 @@ def stand_lineup(row: dict, event_uri: str, fair_slug: str,
     }
     note = (row.get("description") or "").strip()
     if note:
-        # venue.lineup.note is capped at maxGraphemes 2000, and ten of Frieze's
+        # place.lineup.note is capped at maxGraphemes 2000, and ten of Frieze's
         # gallery descriptions exceed it. Without this, those galleries fail
         # validation and vanish from the fair entirely — a truncated description
         # is a far smaller loss than a missing exhibitor. The ellipsis keeps the

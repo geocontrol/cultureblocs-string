@@ -37,7 +37,9 @@ COLLECTIONS = ["com.cultureblocs.bead", "com.cultureblocs.annotation",
                "com.cultureblocs.strand", "com.cultureblocs.creative.profile",
                "com.cultureblocs.creative.work",
                "com.cultureblocs.creative.connection",
-               "com.cultureblocs.venue.profile", "com.cultureblocs.venue.lineup",
+               "com.cultureblocs.place.profile", "com.cultureblocs.place.lineup",
+               "com.cultureblocs.offer",
+               "com.cultureblocs.venue.profile", "com.cultureblocs.venue.lineup",  # deprecated
                "community.lexicon.calendar.event"]
 PUBLIC_API = "https://public.api.bsky.app/xrpc"
 
