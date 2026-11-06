@@ -48,13 +48,24 @@ the pinned CID no longer matches.
 | Endpoint | What it answers |
 |---|---|
 | `GET /` | dashboard: totals, listings with reference counts |
-| `GET /venue/{handle-or-did}` | profile, listings, and public references per listing |
-| `GET /creative/{handle-or-did}` | works, attestations pointing at them, computed verification |
+| `GET /place/{handle-or-did}` | the account's places (`place.profile`, or an old `venue.profile` read as a place), each with its open offers; events and public references per event |
+| `GET /venue/{handle-or-did}` | deprecated alias of `/place`, plus `profile` (the first place, in its original shape) for existing clients |
+| `GET /creative/{handle-or-did}` | works, attestations pointing at them, computed verification, the creative's open offers |
 | `GET /references?uri=` | who publicly pointed at this record |
 | `GET /record?uri=` | one record plus its reference count |
 | `GET /records?collection=&did=` | raw index |
 | `POST /backfill?actor=` | index an existing repo |
 | `GET /stats`, `GET /health` | totals |
+
+**Places and offers.** An account that has published any `place.profile`
+is shown with those; an account that only has the deprecated
+`venue.profile` is shown with that record read as a place (`spaceTypes:
+["venue"]`, marked `legacyCollection`, original body in `originalValue`),
+so nothing has to be republished. An offer is open when its `status` is
+`open` and the time is inside any `validFrom`/`validUntil` window; any
+other status, known or not, counts as closed. An offer with `offeredBy`
+belongs to that place, and is only shown if the place is in the same
+repo; one without belongs to the creative.
 
 `verified` on an attestation means **both parties independently point at
 each other**. It is computed from the graph at read time, never granted

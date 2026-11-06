@@ -1,7 +1,7 @@
 """The CultureBlocs AppView: a lens over public com.cultureblocs.* records.
 
 It answers the questions a single repository cannot: who has published
-what across the network, and — the one that matters for venues — how
+what across the network, and — the one that matters for places — how
 many people have publicly referenced this listing.
 
 What it is not: an audience-data platform. It indexes only records their
@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse
 
 from .db import Index, uri_parts
 from .ingest import EVENT, LEGACY_LISTING, RSVP, backfill, consume, resolve_handle
+from .places import LINEUPS, offers_for, places_for
 
 DB_PATH = os.environ.get("APPVIEW_DB", "/data/appview.db")
 SEED_ACTORS = [a.strip() for a in os.environ.get("APPVIEW_SEED", "").split(",") if a.strip()]
@@ -112,25 +113,48 @@ def _split_referrers(uri: str) -> dict:
                    "createdAt": b.get("createdAt")}
                   for b in beads
                   if isinstance((b["value"] or {}).get("note"), str)],
-        "lineups": [r for r in other
-                    if r["collection"] == "com.cultureblocs.venue.lineup"],
+        "lineups": [r for r in other if r["collection"] in LINEUPS],
     }
+
+
+def _resolve(actor: str) -> str:
+    try:
+        return resolve_handle(actor)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/place/{actor}")
+def place(actor: str) -> dict:
+    """A place's public record: its place profiles, open offers, what's on,
+    and who publicly said they were coming (RSVPs) or were there (beads).
+
+    One account can publish several places (a studio provider with many
+    sites). An account that only ever published the old venue.profile is
+    shown with that record read as a place, marked legacyCollection.
+    Events are community.lexicon.calendar.event records, the shared event
+    type of the open social web, so this works for any place publishing
+    them, whether or not it has ever heard of CultureBlocs.
+    """
+    did = _resolve(actor)
+    places = places_for(index, did)
+    offers = offers_for(index, did, [p["uri"] for p in places])
+    places = [{**p, "offers": offers["byPlace"].get(p["uri"], [])} for p in places]
+    return {"did": did, "places": places, **_events_for(did)}
 
 
 @app.get("/venue/{actor}")
 def venue(actor: str) -> dict:
-    """A venue's public record: profile, what's on, and who publicly said
-    they were coming (RSVPs) or that they were there (beads).
+    """Deprecated alias of /place/{actor}, kept for existing clients: the
+    same payload plus `profile`, the first place, where it used to be."""
+    out = place(actor)
+    first = out["places"][0] if out["places"] else None
+    if first and "originalValue" in first:   # an old venue: give back its own shape
+        first = {**first, "value": first["originalValue"]}
+    return {**out, "profile": first}
 
-    Events are community.lexicon.calendar.event records — the shared event
-    type of the open social web — so this works for any venue publishing
-    them, whether or not it has ever heard of CultureBlocs.
-    """
-    try:
-        did = resolve_handle(actor)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    profile = index.records("com.cultureblocs.venue.profile", did, 1)
+
+def _events_for(did: str) -> dict:
     events = []
     for e in (index.records(EVENT, did, 200)
               + index.records(LEGACY_LISTING, did, 200)):
@@ -140,9 +164,7 @@ def venue(actor: str) -> dict:
                        "name": v.get("name") or v.get("title"),
                        "startsAt": v.get("startsAt") or v.get("start")})
     events.sort(key=lambda x: (x["startsAt"] or ""), reverse=True)
-    return {"did": did,
-            "profile": profile[0] if profile else None,
-            "events": events,
+    return {"events": events,
             "totals": {"events": len(events),
                        "rsvps": sum(e["rsvps"] for e in events),
                        "beads": sum(e["beads"] for e in events),
@@ -170,6 +192,7 @@ def creative(actor: str) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     profile = index.records("com.cultureblocs.creative.profile", did, 1)
+    offers = offers_for(index, did)["own"]
     works = []
     for w in index.records("com.cultureblocs.creative.work", did, 200):
         attestations = [r for r in index.referrers(w["uri"]) if r["did"] != did]
@@ -180,7 +203,7 @@ def creative(actor: str) -> dict:
             for a in attestations]})
     claims = index.records("com.cultureblocs.creative.connection", did, 200)
     return {"did": did, "profile": profile[0] if profile else None,
-            "works": works, "claims": claims}
+            "works": works, "claims": claims, "offers": offers}
 
 
 EMPTY_PANEL = """
@@ -265,7 +288,7 @@ def _home() -> str:
             print(f"[dashboard] skipped {l.get('uri')}: {exc}", flush=True)
     if not rows:
         rows = ("<tr><td colspan='4' class='m'>no events indexed yet — "
-                "backfill a venue or organiser above</td></tr>")
+                "backfill a place or organiser above</td></tr>")
     if not coll_rows:
         coll_rows = "<tr><td class='m'>nothing indexed yet</td></tr>"
     empty_panel = "" if s["records"] else EMPTY_PANEL
@@ -328,9 +351,10 @@ Both point at the same event record.</p>
 published earlier needs a one-off backfill.</p>
 <h2>API</h2>
 <table>
-<tr><td class="m">GET /venue/{{handle}}</td><td>profile, events, RSVP and bead counts</td></tr>
+<tr><td class="m">GET /place/{{handle}}</td><td>places, open offers, events, RSVP and bead counts</td></tr>
+<tr><td class="m">GET /venue/{{handle}}</td><td>deprecated alias of /place</td></tr>
 <tr><td class="m">GET /event?uri=</td><td>one event and everything pointing at it</td></tr>
-<tr><td class="m">GET /creative/{{handle}}</td><td>works, attestations, computed verification</td></tr>
+<tr><td class="m">GET /creative/{{handle}}</td><td>works, attestations, computed verification, open offers</td></tr>
 <tr><td class="m">GET /references?uri=</td><td>who publicly pointed at a record</td></tr>
 <tr><td class="m">GET /records?collection=&amp;did=</td><td>raw index</td></tr>
 <tr><td class="m">POST /backfill?actor=</td><td>index an existing repo</td></tr>
