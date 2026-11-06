@@ -28,7 +28,8 @@ Three principles, enforced by architecture rather than policy:
     lexicons/com/cultureblocs/  the schema commons:
                                 defs, bead, annotation, strand;
                                 creative/{profile,work,connection};
-                                venue/{profile,lineup}
+                                place/{profile,lineup}; offer;
+                                venue/{profile,lineup} (deprecated)
     lexicons/community/         vendored Lexicon Community schemas
                                 (calendar events + RSVPs, locations)
     string/                     the String service (FastAPI + SQLite WAL)
@@ -243,6 +244,14 @@ up with `sqlite3 data/string.db ".backup backup.db"` and a copy of
 
 ## Related
 
+- **Culture Catalogue** ([repo](https://github.com/geocontrol/culture-catalogue))
+  — a separately branded directory of creative people and places built
+  on this data. `place.profile`, `place.lineup`, `offer`, `defs#areaRef`
+  and CreativeID's `basedIn`/`activeIn` were added for it: places the
+  public can visit or book carry an address, people carry a named area
+  only, and offers come and go on their own records. Its UK area
+  gazetteer produces the `areaRef` values. `venue.profile` and
+  `venue.lineup` are deprecated in favour of the `place.*` records.
 - **cultureblocs.com** — the schema commons, apps, and London meetup
   ([site repo](https://github.com/Geocontrol) · the meetup page renders
   strands live from `@cultureblocs.com`).
