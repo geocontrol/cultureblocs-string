@@ -590,5 +590,336 @@
       ]
     },
     "problems": []
+  },
+  {
+    "name": "minimal place validates",
+    "nsid": "com.cultureblocs.place.profile",
+    "body": {
+      "$type": "com.cultureblocs.place.profile",
+      "name": "Arch 7 Studios",
+      "spaceTypes": [
+        "rehearsal_room"
+      ],
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": []
+  },
+  {
+    "name": "place missing spaceTypes",
+    "nsid": "com.cultureblocs.place.profile",
+    "body": {
+      "$type": "com.cultureblocs.place.profile",
+      "name": "Arch 7 Studios",
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": [
+      "$.spaceTypes: required field missing"
+    ]
+  },
+  {
+    "name": "place with address location, area and mixed space types",
+    "nsid": "com.cultureblocs.place.profile",
+    "body": {
+      "$type": "com.cultureblocs.place.profile",
+      "name": "Arch 7 Studios",
+      "spaceTypes": [
+        "gallery",
+        "artist_studio",
+        "shop"
+      ],
+      "publicAccess": "walk_in",
+      "location": {
+        "$type": "community.lexicon.location.address",
+        "street": "7 Railway Arches",
+        "locality": "London",
+        "postalCode": "SE8 4AA",
+        "country": "GB"
+      },
+      "area": {
+        "label": "Lewisham",
+        "level": "local_authority",
+        "country": "GB",
+        "externalIds": [
+          {
+            "scheme": "gss",
+            "id": "E09000023"
+          }
+        ]
+      },
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": []
+  },
+  {
+    "name": "online-only supplier with service area and no location",
+    "nsid": "com.cultureblocs.place.profile",
+    "body": {
+      "$type": "com.cultureblocs.place.profile",
+      "name": "Selvedge & Co",
+      "spaceTypes": [
+        "supplier"
+      ],
+      "publicAccess": "online_only",
+      "serviceArea": [
+        {
+          "label": "United Kingdom",
+          "level": "country",
+          "country": "GB"
+        }
+      ],
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": []
+  },
+  {
+    "name": "unknown space type is advisory, not an error",
+    "nsid": "com.cultureblocs.place.profile",
+    "body": {
+      "$type": "com.cultureblocs.place.profile",
+      "name": "Kiln Yard",
+      "spaceTypes": [
+        "pottery_kiln_hire"
+      ],
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": []
+  },
+  {
+    "name": "area without a label is rejected",
+    "nsid": "com.cultureblocs.place.profile",
+    "body": {
+      "$type": "com.cultureblocs.place.profile",
+      "name": "Arch 7 Studios",
+      "spaceTypes": [
+        "gallery"
+      ],
+      "area": {
+        "wikidata": "Q123"
+      },
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": [
+      "$.area.label: required field missing"
+    ]
+  },
+  {
+    "name": "minimal offer validates",
+    "nsid": "com.cultureblocs.offer",
+    "body": {
+      "$type": "com.cultureblocs.offer",
+      "kind": "offer",
+      "title": "Mixing and mastering",
+      "status": "open",
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": []
+  },
+  {
+    "name": "offer missing status",
+    "nsid": "com.cultureblocs.offer",
+    "body": {
+      "$type": "com.cultureblocs.offer",
+      "kind": "need",
+      "title": "Looking for a drummer",
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": [
+      "$.status: required field missing"
+    ]
+  },
+  {
+    "name": "paused place offer with expiry and areas",
+    "nsid": "com.cultureblocs.offer",
+    "body": {
+      "$type": "com.cultureblocs.offer",
+      "kind": "offer",
+      "offerType": "space_to_let",
+      "title": "Shared studio desk, Deptford",
+      "status": "paused",
+      "offeredBy": {
+        "uri": "at://did:plc:example/com.cultureblocs.place.profile/self"
+      },
+      "areas": [
+        {
+          "label": "Lewisham",
+          "level": "local_authority",
+          "country": "GB",
+          "externalIds": [
+            {
+              "scheme": "gss",
+              "id": "E09000023"
+            }
+          ]
+        }
+      ],
+      "price": "£150/month",
+      "validUntil": "2027-02-01T00:00:00Z",
+      "updatedAt": "2026-11-06T17:00:00Z",
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": []
+  },
+  {
+    "name": "offer validUntil must be a datetime",
+    "nsid": "com.cultureblocs.offer",
+    "body": {
+      "$type": "com.cultureblocs.offer",
+      "kind": "offer",
+      "title": "Mixing",
+      "status": "open",
+      "validUntil": "end of January",
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": [
+      "$.validUntil: not an ISO 8601 datetime: 'end of January'"
+    ]
+  },
+  {
+    "name": "creative profile with basedIn and activeIn areas",
+    "nsid": "com.cultureblocs.creative.profile",
+    "body": {
+      "$type": "com.cultureblocs.creative.profile",
+      "name": "A. Painter",
+      "basedIn": [
+        {
+          "label": "Frome, Somerset",
+          "wikidata": "Q1242441",
+          "level": "town",
+          "country": "GB",
+          "within": [
+            {
+              "scheme": "gss",
+              "id": "E06000066"
+            },
+            {
+              "scheme": "gss",
+              "id": "E12000009"
+            },
+            {
+              "scheme": "gss",
+              "id": "E92000001"
+            }
+          ]
+        }
+      ],
+      "activeIn": [
+        {
+          "label": "London",
+          "level": "city",
+          "country": "GB"
+        }
+      ],
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": []
+  },
+  {
+    "name": "creative basedIn capped at three areas",
+    "nsid": "com.cultureblocs.creative.profile",
+    "body": {
+      "$type": "com.cultureblocs.creative.profile",
+      "name": "A. Painter",
+      "basedIn": [
+        {
+          "label": "Frome, Somerset",
+          "wikidata": "Q1242441",
+          "level": "town",
+          "country": "GB",
+          "within": [
+            {
+              "scheme": "gss",
+              "id": "E06000066"
+            },
+            {
+              "scheme": "gss",
+              "id": "E12000009"
+            },
+            {
+              "scheme": "gss",
+              "id": "E92000001"
+            }
+          ]
+        },
+        {
+          "label": "Frome, Somerset",
+          "wikidata": "Q1242441",
+          "level": "town",
+          "country": "GB",
+          "within": [
+            {
+              "scheme": "gss",
+              "id": "E06000066"
+            },
+            {
+              "scheme": "gss",
+              "id": "E12000009"
+            },
+            {
+              "scheme": "gss",
+              "id": "E92000001"
+            }
+          ]
+        },
+        {
+          "label": "Frome, Somerset",
+          "wikidata": "Q1242441",
+          "level": "town",
+          "country": "GB",
+          "within": [
+            {
+              "scheme": "gss",
+              "id": "E06000066"
+            },
+            {
+              "scheme": "gss",
+              "id": "E12000009"
+            },
+            {
+              "scheme": "gss",
+              "id": "E92000001"
+            }
+          ]
+        },
+        {
+          "label": "Frome, Somerset",
+          "wikidata": "Q1242441",
+          "level": "town",
+          "country": "GB",
+          "within": [
+            {
+              "scheme": "gss",
+              "id": "E06000066"
+            },
+            {
+              "scheme": "gss",
+              "id": "E12000009"
+            },
+            {
+              "scheme": "gss",
+              "id": "E92000001"
+            }
+          ]
+        }
+      ],
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": [
+      "$.basedIn: exceeds maxLength 3"
+    ]
+  },
+  {
+    "name": "minimal place lineup validates",
+    "nsid": "com.cultureblocs.place.lineup",
+    "body": {
+      "$type": "com.cultureblocs.place.lineup",
+      "event": {
+        "uri": "at://did:plc:example/community.lexicon.calendar.event/3k"
+      },
+      "place": {
+        "uri": "at://did:plc:example/com.cultureblocs.place.profile/self"
+      },
+      "createdAt": "2026-11-06T17:00:00Z"
+    },
+    "problems": []
   }
 ]

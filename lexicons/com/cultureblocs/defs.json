@@ -81,6 +81,63 @@
         }
       }
     },
+    "areaRef": {
+      "type": "object",
+      "description": "A named area — neighbourhood, town, city, borough, county, region — as a person would describe where they are. Deliberately carries no coordinates: this is how people say where they are based without being located. `wikidata` is the portable identity across countries; national codes (ONS GSS in the UK, Eurostat LAU in the EU) ride in externalIds so readers can roll a town up into its local authority and region.",
+      "required": [
+        "label"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "maxGraphemes": 200,
+          "description": "Display name as chosen, e.g. 'Frome, Somerset'."
+        },
+        "wikidata": {
+          "type": "string",
+          "maxGraphemes": 32,
+          "description": "Wikidata QID of the area, e.g. for Frome or Lewisham. Preferred identity: readers cluster on this."
+        },
+        "level": {
+          "type": "string",
+          "maxGraphemes": 32,
+          "knownValues": [
+            "neighbourhood",
+            "village",
+            "town",
+            "city",
+            "local_authority",
+            "county",
+            "region",
+            "country"
+          ]
+        },
+        "country": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10,
+          "description": "ISO 3166 country code, matching community.lexicon.location.address, e.g. 'GB'."
+        },
+        "externalIds": {
+          "type": "array",
+          "maxLength": 8,
+          "items": {
+            "type": "ref",
+            "ref": "#externalId"
+          },
+          "description": "National codes for this area itself, e.g. { scheme: 'gss', id: 'E09000023' } for Lewisham. Many towns and neighbourhoods have none."
+        },
+        "within": {
+          "type": "array",
+          "maxLength": 6,
+          "items": {
+            "type": "ref",
+            "ref": "#externalId"
+          },
+          "description": "National codes of the areas this one sits inside, nearest first, e.g. Frome \u2192 Somerset (gss E06000066), South West (E12000009), England (E92000001). Lets a reader filter by local authority or region without a gazetteer of its own."
+        }
+      }
+    },
     "geo": {
       "type": "object",
       "required": [
@@ -247,7 +304,9 @@
             "olid",
             "tmdb",
             "linkedArt",
-            "accession"
+            "accession",
+            "gss",
+            "lau"
           ]
         },
         "id": {
@@ -269,7 +328,7 @@
         "type": {
           "type": "string",
           "maxGraphemes": 32,
-          "knownValues": ["person", "work", "event", "venue", "concept"]
+          "knownValues": ["person", "work", "event", "venue", "place", "concept"]
         },
         "role": {
           "type": "string",
