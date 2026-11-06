@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "Cultural detail attached to an event that the shared calendar record does not carry: who is on, and what is performed or shown. A layer, not a replacement \u2014 it references an event by strongRef and never duplicates it. The same discipline as the creative namespace: layers reference the core claim rather than growing it. If these fields prove generally useful they belong upstream in the community calendar lexicon, not here.",
+      "description": "DEPRECATED — do not write new records. Use com.cultureblocs.place.lineup, identical except that `venue` is renamed `place`. This schema remains published so existing records stay resolvable. Original description: cultural detail attached to an event that the shared calendar record does not carry: who is on, and what is performed or shown. A layer, not a replacement \u2014 it references an event by strongRef and never duplicates it. The same discipline as the creative namespace: layers reference the core claim rather than growing it. If these fields prove generally useful they belong upstream in the community calendar lexicon, not here.",
       "key": "tid",
       "record": {
         "type": "object",

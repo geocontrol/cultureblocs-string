@@ -23,8 +23,11 @@ COLLECTIONS = [
     "com.cultureblocs.creative.profile",
     "com.cultureblocs.creative.work",
     "com.cultureblocs.creative.connection",
-    "com.cultureblocs.venue.profile",
-    "com.cultureblocs.venue.lineup",
+    "com.cultureblocs.place.profile",
+    "com.cultureblocs.place.lineup",
+    "com.cultureblocs.offer",
+    "com.cultureblocs.venue.profile",       # deprecated; indexed for old records
+    "com.cultureblocs.venue.lineup",        # deprecated; indexed for old records
     "com.cultureblocs.venue.listing",      # deprecated; indexed for old records
     # Shared schemas of the open social web. Events are published by many
     # apps (atmo.rsvp, VenueCMS venues, us) and referenced by all of them:
